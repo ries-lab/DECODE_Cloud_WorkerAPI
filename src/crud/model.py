@@ -39,3 +39,10 @@ def delete_model(db: Session, model_id: int):
     db.delete(db_model)
     db.commit()
     return True
+
+
+def update_model_state(db: Session, model: models.Model, state: schemas.ModelStates):
+    model.status = state.value
+    db.commit()
+    db.refresh(model)
+    return model

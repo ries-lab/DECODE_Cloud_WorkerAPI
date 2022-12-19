@@ -1,6 +1,7 @@
 import datetime
 
 from pydantic import BaseModel
+from models import DecodeVersions, ModelStates
 
 
 class ModelBase(BaseModel):
@@ -17,11 +18,11 @@ class ModelUpdate(ModelBase):
 
 class Model(ModelBase):
     id: int
-    status: str
+    status: ModelStates
     config_file: str | None = None
     inference_config_file: str | None
     model_file: str | None = None
-    decode_version: str | None
+    decode_version: DecodeVersions | None
     date_created: datetime.datetime
     last_used: datetime.datetime | None
     date_trained: datetime.datetime | None

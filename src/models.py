@@ -31,6 +31,11 @@ class JobStates(enum.Enum):
     error = "error"
 
 
+class EnvironmentTypes(enum.Enum):
+    cloud = "cloud"
+    local = "local"
+
+
 class Model(Base):
     __tablename__ = "models"
 
@@ -56,7 +61,8 @@ class Job(Base):
     date_created = Column(DateTime, default=datetime.datetime.utcnow)
     date_started = Column(DateTime)
     date_finished = Column(DateTime)
-    status = Column(String, Enum(JobStates), nullable=False)
+    status = Column(String, Enum(JobStates), nullable=False, default=JobStates.pending.value)
     model_id = Column(Integer, ForeignKey("models.id"), nullable=False)
     model = relationship("Model", back_populates="jobs")
-    job_attributes = Column(JSON, nullable=False)
+    environment = Column(String, Enum(EnvironmentTypes))
+    attributes = Column(JSON, nullable=False)
