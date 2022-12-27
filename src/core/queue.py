@@ -36,7 +36,8 @@ class JobQueue(ABC):
             job = Job(**job_json)
             # check "old enough"
             time_now = datetime.datetime.utcnow()
-            if time_now - datetime.datetime.strptime(job.date_created) > older_than:
+            job_age = time_now - datetime.datetime.fromisoformat(job.date_created)
+            if job_age > datetime.timedelta(seconds=older_than):
                 # remove from queue and return
                 self.pop(receipt_handle)
                 return job
