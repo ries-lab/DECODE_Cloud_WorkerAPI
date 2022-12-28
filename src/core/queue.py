@@ -118,3 +118,7 @@ class SQSJobQueue(JobQueue):
             ReceiptHandle=receipt_handle,
         )
         return response
+
+
+def get_queue() -> JobQueue:
+    return LocalJobQueue('queue.pkl')
