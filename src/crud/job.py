@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 
-import models
-import schemas
+from .. import models
+from .. import schemas
 
 
 def create_train_job(db: Session, train_job: schemas.TrainJobCreate):

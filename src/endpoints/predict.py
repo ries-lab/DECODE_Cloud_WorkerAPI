@@ -2,12 +2,12 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from database import get_db
-from schemas import InferenceJob, InferenceJobCreate
-from crud.model import get_model
-from crud.job import create_inference_job
-from models import ModelStates
-from settings import user_id
+from ..database import get_db
+from ..schemas import InferenceJob, InferenceJobCreate
+from ..crud.model import get_model
+from ..crud.job import create_inference_job
+from ..models import ModelStates
+from ..settings import user_id
 
 router = APIRouter()
 

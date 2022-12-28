@@ -2,7 +2,7 @@ from typing import Literal
 import datetime
 from pydantic import BaseModel
 
-from models import EnvironmentTypes, DecodeVersions, JobStates
+from ..models import EnvironmentTypes, DecodeVersions, JobStates
 
 
 class JobBase(BaseModel):
