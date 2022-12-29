@@ -1,9 +1,11 @@
 import boto3
+import botocore
 import datetime
 import json
 import os
 import pickle
 from abc import ABC, abstractmethod
+from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
 from typing import Tuple
 
@@ -93,17 +95,27 @@ class SQSJobQueue(JobQueue):
         self.sqs_client = boto3.client("sqs")
 
     def enqueue(self, job: Job):
-        self.sqs_client.send_message(
-            QueueUrl=self.queue_url,
-            MessageBody=json.dumps(jsonable_encoder(job))
-        )
+        try:
+            self.sqs_client.send_message(
+                QueueUrl=self.queue_url,
+                MessageBody=json.dumps(jsonable_encoder(job))
+            )
+        except botocore.exceptions.ClientError as error:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Error sending message to SQS queue: {error['Error']['Code']}.")
 
     def peek(self) -> Tuple[dict, str | None]:
-        response = self.sqs_client.receive_message(
-            QueueUrl=self.queue_url,
-            MaxNumberOfMessages=1,
-            WaitTimeSeconds=10,
-        )
+        try:
+            response = self.sqs_client.receive_message(
+                QueueUrl=self.queue_url,
+                MaxNumberOfMessages=1,
+                WaitTimeSeconds=10,
+            )
+        except botocore.exceptions.ClientError as error:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Error receiving message from SQS queue: {error['Error']['Code']}.")
         if len(response.get('Messages', [])):
             message = response['Messages'][0]
             message_body = message['Body']
@@ -113,10 +125,15 @@ class SQSJobQueue(JobQueue):
         return None
 
     def pop(self, receipt_handle: str | None):
-        response = self.sqs_client.delete_message(
-            QueueUrl=self.queue_url,
-            ReceiptHandle=receipt_handle,
-        )
+        try:
+            response = self.sqs_client.delete_message(
+                QueueUrl=self.queue_url,
+                ReceiptHandle=receipt_handle,
+            )
+        except botocore.exceptions.ClientError as error:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Error deleting message from SQS queue: {error['Error']['Code']}.")
         return response
 
 
