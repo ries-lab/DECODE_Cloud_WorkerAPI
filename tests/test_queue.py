@@ -35,7 +35,7 @@ class TestQueue:
     def test_create_queue(self, create_queue):
         job_queue = create_queue
         # test queue is empty
-        assert job_queue.peek() is None
+        assert job_queue.peek()[0] is None
     
     @pytest.fixture
     def create_populated_queue(self, create_queue, create_jobs):
@@ -47,7 +47,7 @@ class TestQueue:
 
     def test_enqueue(self, create_populated_queue):
         job_queue = create_populated_queue
-        assert job_queue.peek() is not None
+        assert job_queue.peek()[0] is not None
 
     def test_peek(self, create_populated_queue):
         job_queue = create_populated_queue

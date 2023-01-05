@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 
 from .. import models
 from .. import schemas
-from ..core import JobQueue
+from ..core.queue import JobQueue
 
 
 def create_train_job(db: Session, queue: JobQueue, train_job: schemas.TrainJobCreate):

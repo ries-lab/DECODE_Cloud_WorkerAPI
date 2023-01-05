@@ -5,8 +5,10 @@ import json
 import os
 import pickle
 from abc import ABC, abstractmethod
+from dict_hash import sha256
 from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
+from functools import partial
 from typing import Tuple
 
 from ..models import Job
@@ -30,10 +32,9 @@ class JobQueue(ABC):
 
     def dequeue(self, older_than: float=0) -> Job | None:
         # get last element
-        res = self.peek()
+        job_json, receipt_handle = res = self.peek()
         # if element found
-        if res:
-            job_json, receipt_handle = res
+        if job_json:
             # get job
             job = Job(**job_json)
             # check "old enough"
@@ -68,17 +69,21 @@ class LocalJobQueue(JobQueue):
             f.truncate()
             pickle.dump(queue, f)
     
-    def peek(self) -> Tuple[dict, str | None]:
+    def peek(self) -> Tuple[dict | None, str | None]:
         with open(self.queue_path, 'rb+') as f:
             queue = pickle.load(f)
         if len(queue):
             job_json = queue[0]
-            return job_json, None
-        return None
+            return job_json, sha256(job_json)
+        return None, None
 
-    def pop(self, receipt_handle=None):
+    def pop(self, receipt_handle):
         with open(self.queue_path, 'rb+') as f:
             queue = pickle.load(f)
+            if sha256(queue[0]) != receipt_handle:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Element not first in queue.")
             queue = queue[1:]
             f.seek(0)
             f.truncate()
@@ -137,5 +142,7 @@ class SQSJobQueue(JobQueue):
         return response
 
 
-def get_queue() -> JobQueue:
-    return LocalJobQueue('queue.pkl')
+def get_queue(path: str) -> JobQueue:
+    if 'amazonaws.com' in path:
+        return SQSJobQueue(path)
+    return LocalJobQueue(path)

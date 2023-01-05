@@ -8,7 +8,8 @@ from ..crud.model import get_model, update_model_state
 from ..crud.job import create_train_job
 from ..models import ModelStates
 from ..settings import user_id
-from ..core.queue import JobQueue, get_queue
+from ..core.queue import get_queue
+from ..config import get_settings
 
 router = APIRouter()
 
@@ -17,8 +18,9 @@ router = APIRouter()
 def train_model(
     train_job: TrainJobCreate,
     db: Any = Depends(get_db),
-    queue: JobQueue = Depends(get_queue),
+    settings: Any = Depends(get_settings),
 ):
+    queue = get_queue(settings.QUEUE_PATH)
     model = get_model(db, train_job.model_id)
     if not model or model.user_id != user_id:
         raise HTTPException(status_code=404, detail=f"Model {train_job.model_id} not found")
