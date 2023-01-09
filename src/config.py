@@ -7,7 +7,9 @@ from pydantic import BaseSettings
 def get_settings(env_file_path=".env"):
     class Settings(BaseSettings):
         DATABASE_URL: str
-        QUEUE_PATH: str
+        LOCAL_QUEUE: str
+        CLOUD_QUEUE: str
+        ANY_QUEUE: str
         class Config:
             env_file = os.path.join(
                 os.path.dirname(os.path.abspath(__file__)),

@@ -8,7 +8,7 @@ from ..crud.model import get_model
 from ..crud.job import create_inference_job
 from ..models import ModelStates
 from ..settings import user_id
-from ..queue import get_queue
+from ..queue import get_queues
 
 
 router = APIRouter()
@@ -18,7 +18,7 @@ router = APIRouter()
 def predict(
     infer_job: InferenceJobCreate,
     db: Any = Depends(get_db),
-    queue: Any = Depends(get_queue),
+    queues: Any = Depends(get_queues),
 ):
     model = get_model(db, infer_job.model_id)
     if not model or model.user_id != user_id:
@@ -26,5 +26,5 @@ def predict(
     if model.status != ModelStates.trained.value:
         raise HTTPException(status_code=400, detail=f"Model {infer_job.model_id} has not been trained")
 
-    db_train_job = create_inference_job(db, queue, infer_job)
+    db_train_job = create_inference_job(db, queues, infer_job)
     return db_train_job

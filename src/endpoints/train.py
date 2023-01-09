@@ -8,7 +8,7 @@ from ..crud.model import get_model, update_model_state
 from ..crud.job import create_train_job
 from ..models import ModelStates
 from ..settings import user_id
-from ..queue import get_queue
+from ..queue import get_queues
 
 router = APIRouter()
 
@@ -17,7 +17,7 @@ router = APIRouter()
 def train_model(
     train_job: TrainJobCreate,
     db: Any = Depends(get_db),
-    queue: Any = Depends(get_queue),
+    queues: Any = Depends(get_queues),
 ):
     model = get_model(db, train_job.model_id)
     if not model or model.user_id != user_id:
@@ -27,6 +27,6 @@ def train_model(
     if model.status == ModelStates.training.value:
         raise HTTPException(status_code=400, detail=f"Model {train_job.model_id} is already training")
 
-    db_train_job = create_train_job(db, queue, train_job)
+    db_train_job = create_train_job(db, queues, train_job)
     update_model_state(db, model, ModelStates.training)
     return db_train_job

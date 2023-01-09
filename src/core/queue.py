@@ -132,7 +132,7 @@ class SQSJobQueue(JobQueue):
             return False
 
     def create(self):
-        res = self.sqs_client.create_queue(QueueName=self.queue_url)
+        res = self.sqs_client.create_queue(QueueName=self.queue_name)
         self.queue_url = res['QueueUrl']
 
     def enqueue(self, job: Job):
@@ -178,14 +178,14 @@ class SQSJobQueue(JobQueue):
         return response
 
 
-def get_queue_from_path(path: str, create_if_not_exists: bool=False) -> JobQueue:
-    if 'amazonaws.com' in path:
-        queue = SQSJobQueue(path)
+def get_queue(name: str, create_if_not_exists: bool=False) -> JobQueue:
+    if name.startswith('aws:'):
+        queue = SQSJobQueue(name[4:])
     else:
-        queue = LocalJobQueue(path)
+        queue = LocalJobQueue(name)
     if not queue.exists():
         if create_if_not_exists:
             queue.create()
         else:
-            raise ValueError(f"Queue {path} does not exist.")
+            raise ValueError(f"Queue {name} does not exist.")
     return queue
