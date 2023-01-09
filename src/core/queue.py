@@ -8,15 +8,24 @@ from abc import ABC, abstractmethod
 from dict_hash import sha256
 from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
-from functools import partial
 from typing import Tuple
 
 from ..models import Job
 
 
 class JobQueue(ABC):
-    def __init__(self, path: str):
-        self.queue_path = path
+
+    @abstractmethod
+    def exists(self):
+        pass
+
+    @abstractmethod
+    def create(self):
+        pass
+
+    @abstractmethod
+    def delete(self):
+        pass
 
     @abstractmethod
     def enqueue(self, job: Job):
@@ -32,7 +41,7 @@ class JobQueue(ABC):
 
     def dequeue(self, older_than: float=0) -> Job | None:
         # get last element
-        job_json, receipt_handle = res = self.peek()
+        job_json, receipt_handle = self.peek()
         # if element found
         if job_json:
             # get job
@@ -50,13 +59,25 @@ class JobQueue(ABC):
 class LocalJobQueue(JobQueue):
     """Local job queue, for testing purposes only.
     """
+
     def __init__(self, queue_path: str):
         self.queue_path = queue_path
-        # Create queue if it does not exist
-        if not os.path.exists(queue_path):
-            queue = list()
-            with open(queue_path, 'wb') as f:
-                pickle.dump(queue, f)
+
+    def exists(self):
+        return os.path.exists(self.queue_path)
+    
+    def create(self):
+        if os.path.exists(self.queue_path):
+            raise ValueError("A queue at this path already exists.")
+        queue = list()
+        with open(self.queue_path, 'wb') as f:
+            pickle.dump(queue, f)
+    
+    def delete(self):
+        try:
+            os.remove(self.queue_path)
+        except:
+            pass
     
     def enqueue(self, job: Job):
         with open(self.queue_path, 'rb+') as f:
@@ -95,9 +116,24 @@ class LocalJobQueue(JobQueue):
 # has the time to pull
 class SQSJobQueue(JobQueue):
 
-    def __init__(self, queue_url):
-        self.queue_url = queue_url
+    def __init__(self, queue_name: str):
+        self.queue_name = queue_name
         self.sqs_client = boto3.client("sqs")
+        try:
+            self.queue_url = self.sqs_client.get_queue_url(QueueName=queue_name)
+        except:
+            pass
+    
+    def exists(self) -> bool:
+        try:
+            self.sqs_client.get_queue_url(QueueName=self.queue_name)
+            return True
+        except:
+            return False
+
+    def create(self):
+        res = self.sqs_client.create_queue(QueueName=self.queue_url)
+        self.queue_url = res['QueueUrl']
 
     def enqueue(self, job: Job):
         try:
@@ -142,7 +178,14 @@ class SQSJobQueue(JobQueue):
         return response
 
 
-def get_queue(path: str) -> JobQueue:
+def get_queue(path: str, create_if_not_exists: bool=False) -> JobQueue:
     if 'amazonaws.com' in path:
-        return SQSJobQueue(path)
-    return LocalJobQueue(path)
+        queue = SQSJobQueue(path)
+    else:
+        queue = LocalJobQueue(path)
+    if not queue.exists():
+        if create_if_not_exists:
+            queue.create()
+        else:
+            raise ValueError("Queue does not exist.")
+    return queue
