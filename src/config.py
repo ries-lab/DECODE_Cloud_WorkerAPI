@@ -6,6 +6,7 @@ from pydantic import BaseSettings
 @lru_cache()
 def get_settings(env_file_path=".env"):
     class Settings(BaseSettings):
+        DATABASE_URL: str
         QUEUE_PATH: str
         class Config:
             env_file = os.path.join(

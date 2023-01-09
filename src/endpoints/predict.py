@@ -8,8 +8,7 @@ from ..crud.model import get_model
 from ..crud.job import create_inference_job
 from ..models import ModelStates
 from ..settings import user_id
-from ..core.queue import get_queue
-from ..config import get_settings
+from ..queue import get_queue
 
 
 router = APIRouter()
@@ -19,9 +18,8 @@ router = APIRouter()
 def predict(
     infer_job: InferenceJobCreate,
     db: Any = Depends(get_db),
-    settings: Any = Depends(get_settings),
+    queue: Any = Depends(get_queue),
 ):
-    queue = get_queue(settings.QUEUE_PATH)
     model = get_model(db, infer_job.model_id)
     if not model or model.user_id != user_id:
         raise HTTPException(status_code=404, detail=f"Model {infer_job.model_id} not found")

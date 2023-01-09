@@ -178,7 +178,7 @@ class SQSJobQueue(JobQueue):
         return response
 
 
-def get_queue(path: str, create_if_not_exists: bool=False) -> JobQueue:
+def get_queue_from_path(path: str, create_if_not_exists: bool=False) -> JobQueue:
     if 'amazonaws.com' in path:
         queue = SQSJobQueue(path)
     else:
@@ -187,5 +187,5 @@ def get_queue(path: str, create_if_not_exists: bool=False) -> JobQueue:
         if create_if_not_exists:
             queue.create()
         else:
-            raise ValueError("Queue does not exist.")
+            raise ValueError(f"Queue {path} does not exist.")
     return queue
