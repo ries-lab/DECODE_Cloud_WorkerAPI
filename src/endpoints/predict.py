@@ -25,7 +25,7 @@ def predict(
     model = get_model(db, infer_job.model_id)
     if not model or model.user_id != user_id:
         raise HTTPException(status_code=404, detail=f"Model {infer_job.model_id} not found")
-    if model.status == ModelStates.trained.value:
+    if model.status != ModelStates.trained.value:
         raise HTTPException(status_code=400, detail=f"Model {infer_job.model_id} has not been trained")
 
     db_train_job = create_inference_job(db, queue, infer_job)
