@@ -117,6 +117,8 @@ class LocalJobQueue(JobQueue):
 class SQSJobQueue(JobQueue):
 
     def __init__(self, queue_name: str):
+        if not queue_name.endswith('.fifo'):
+            queue_name = queue_name + '.fifo'
         self.queue_name = queue_name
         self.sqs_client = boto3.client("sqs")
         try:
@@ -132,19 +134,25 @@ class SQSJobQueue(JobQueue):
             return False
 
     def create(self):
-        res = self.sqs_client.create_queue(QueueName=self.queue_name)
+        res = self.sqs_client.create_queue(QueueName=self.queue_name, Attributes={
+            'FifoQueue': 'true', 'ContentBasedDeduplication': 'true', 'VisibilityTimeout': '5'})
         self.queue_url = res['QueueUrl']
+
+    def delete(self):
+        self.sqs_client.delete_queue(QueueUrl=self.queue_url)
 
     def enqueue(self, job: Job):
         try:
             self.sqs_client.send_message(
                 QueueUrl=self.queue_url,
-                MessageBody=json.dumps(jsonable_encoder(job))
+                MessageBody=json.dumps(jsonable_encoder(job)),
+                MessageGroupId="0",
             )
         except botocore.exceptions.ClientError as error:
+            print(error)
             raise HTTPException(
                 status_code=500,
-                detail=f"Error sending message to SQS queue: {error['Error']['Code']}.")
+                detail=f"Error sending message to SQS queue: {error}.")
 
     def peek(self) -> Tuple[dict, str | None]:
         try:
@@ -156,14 +164,14 @@ class SQSJobQueue(JobQueue):
         except botocore.exceptions.ClientError as error:
             raise HTTPException(
                 status_code=500,
-                detail=f"Error receiving message from SQS queue: {error['Error']['Code']}.")
+                detail=f"Error receiving message from SQS queue: {error}.")
         if len(response.get('Messages', [])):
             message = response['Messages'][0]
             message_body = message['Body']
-            job_json = message_body
+            job_json = json.loads(message_body)
             receipt_handle = message['ReceiptHandle']
             return job_json, receipt_handle
-        return None
+        return None, None
 
     def pop(self, receipt_handle: str | None):
         try:
@@ -172,9 +180,10 @@ class SQSJobQueue(JobQueue):
                 ReceiptHandle=receipt_handle,
             )
         except botocore.exceptions.ClientError as error:
+            print(error)
             raise HTTPException(
                 status_code=500,
-                detail=f"Error deleting message from SQS queue: {error['Error']['Code']}.")
+                detail=f"Error deleting message from SQS queue: {error}.")
         return response
 
 

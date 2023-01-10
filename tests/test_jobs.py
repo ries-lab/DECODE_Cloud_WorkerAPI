@@ -87,3 +87,89 @@ def model_unexistent():
     response = client.get("/models")
     model_id = max([m["id"] for m in response.json()]) + 1
     return model_id
+
+
+
+class TestTrain:
+
+    def test_train(self, any_queue, local_queue, model_untrained):
+        client.post("/train", json={
+            "model_id": model_untrained,
+            "attributes": {"config_file": "", "model_file": "", "inference_config_file": ""}}).json()
+        # test enqueued
+        assert any_queue.peek()[0]["model_id"] == model_untrained
+        # test not enqueued in other queue
+        peek = local_queue.peek()[0]
+        assert not peek or peek["model_id"] != model_trained
+        # test model status
+        assert client.get(f"/models/{model_untrained}").json()["status"] == ModelStates.training.value
+    
+    def test_train_model_trained(self, any_queue, model_trained):
+        resp = client.post("/train", json={
+            "model_id": model_trained,
+            "attributes": {"config_file": "", "model_file": "", "inference_config_file": ""}})
+        # test not enqueued
+        peek = any_queue.peek()[0]
+        assert not peek or peek["model_id"] != model_trained
+        # test error code
+        assert resp.status_code == 400
+
+    def test_train_model_training(self, any_queue, model_training):
+        resp = client.post("/train", json={
+            "model_id": model_training,
+            "attributes": {"config_file": "", "model_file": "", "inference_config_file": ""}})
+        # test not enqueued
+        peek = any_queue.peek()[0]
+        assert not peek or peek["model_id"] != model_trained
+        # test error code
+        assert resp.status_code == 400
+
+    def test_train_model_unexistent(self, any_queue, model_unexistent):
+        resp = client.post("/train", json={
+            "model_id": model_unexistent,
+            "attributes": {"config_file": "", "model_file": "", "inference_config_file": ""}})
+        # test not enqueued
+        peek = any_queue.peek()[0]
+        assert not peek or peek["model_id"] != model_trained
+        # test error code
+        assert resp.status_code == 404
+
+
+class TestPredict:
+
+    def test_predict(self, any_queue, model_trained):
+        client.post("/predict", json={
+            "model_id": model_trained,
+            "attributes": {"data_file": ""}})
+        # test enqueued
+        assert any_queue.peek()[0]["model_id"] == model_trained
+
+    def test_predict_model_untrained(self, any_queue, model_untrained):
+        resp = client.post("/predict", json={
+                "model_id": model_untrained,
+                "attributes": {"data_file": ""}})
+        # test not enqueued
+        peek = any_queue.peek()[0]
+        assert not peek or peek["model_id"] != model_trained
+        # test error code
+        assert resp.status_code == 400
+
+    def test_predict_model_training(self, any_queue, model_training):
+        resp = client.post("/predict", json={
+                "model_id": model_training,
+                "attributes": {"data_file": ""}})
+        # test not enqueued
+        peek = any_queue.peek()[0]
+        assert not peek or peek["model_id"] != model_trained
+        # test error code
+        assert resp.status_code == 400
+
+    def test_predict_model_unexistent(self, any_queue, model_unexistent):
+        resp = client.post("/predict", json={
+                "model_id": model_unexistent,
+                "attributes": {"data_file": ""}})
+        # test not enqueued
+        peek = any_queue.peek()[0]
+        assert not peek or peek["model_id"] != model_trained
+        # test error code
+        assert resp.status_code == 404

@@ -1,5 +1,6 @@
 import datetime
 import pytest
+import time
 from src.core.queue import LocalJobQueue, SQSJobQueue
 from src.models import Job, JobStates, JobTypes
 
@@ -67,6 +68,7 @@ class TestLocalQueue:
 
 @pytest.mark.aws
 class TestsSQSQueue:
+    i = 0
     @pytest.fixture
     def jobs(self):
         time_now = datetime.datetime.utcnow()
@@ -86,11 +88,14 @@ class TestsSQSQueue:
     
     @pytest.fixture
     def queue(self):
-        queue_name = "test_queue"
+        # need new queue name for each test
+        TestsSQSQueue.i = TestsSQSQueue.i + 1
+        queue_name = f"decode_test_sqs_queue_{self.i}"
         job_queue = SQSJobQueue(queue_name)
+        assert not job_queue.exists()
         job_queue.create()
         yield job_queue
-        #job_queue.delete()
+        job_queue.delete()
 
     def test_create_queue(self, queue):
         # test queue is empty
@@ -108,17 +113,20 @@ class TestsSQSQueue:
 
     def test_peek(self, populated_queue):
         assert populated_queue.peek()[0]['model_id'] == 0
+        time.sleep(6)
         # peeking does not remove elements
         assert populated_queue.peek()[0]['model_id'] == 0
     
     def test_dequeue(self, populated_queue):
         assert populated_queue.dequeue().model_id == 0
+        time.sleep(6)
         # dequeue removes elements
         assert populated_queue.peek()[0]['model_id'] == 1
     
     def test_dequeue_old(self, populated_queue):
         # old enough
         assert populated_queue.dequeue(older_than=5*60) is not None
+        time.sleep(6)
         # not old enough
         assert populated_queue.dequeue(older_than=5*60) is None
 
