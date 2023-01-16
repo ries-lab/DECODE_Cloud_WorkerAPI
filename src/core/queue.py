@@ -14,32 +14,52 @@ from ..models import Job
 
 
 class JobQueue(ABC):
+    """Abstract job queue.
+    """
 
     @abstractmethod
     def exists(self):
+        """Check if the queue already exists.
+        """
         pass
 
     @abstractmethod
     def create(self):
+        """Create the initialized queue (raises error if queue already exists).
+        """
         pass
 
     @abstractmethod
     def delete(self):
+        """Delete the queue.
+        """
         pass
 
     @abstractmethod
     def enqueue(self, job: Job):
+        """Push a new job to the queue.
+        """
         pass
 
     @abstractmethod
     def peek(self) -> Tuple[dict, str | None] | None:
+        """Look at first element in the queue.
+        
+        Returns:
+         - job (as a dict)
+         - receipt handle (to provide to the pop method to delete the job from the queue)
+        """
         pass
 
     @abstractmethod
     def pop(self, receipt_handle: str | None) -> None:
+        """Delete job from the queue.
+        """
         pass
 
     def dequeue(self, older_than: float=0) -> Job | None:
+        """Peek last element and remove it from the queue if it is older than `older_than'.
+        """
         # get last element
         job_json, receipt_handle = self.peek()
         # if element found
@@ -115,6 +135,8 @@ class LocalJobQueue(JobQueue):
 #TODO: AWS lambda will need to pull infrequently enough that local
 # has the time to pull
 class SQSJobQueue(JobQueue):
+    """SQS job queue.
+    """
 
     def __init__(self, queue_name: str):
         if not queue_name.endswith('.fifo'):
@@ -188,6 +210,11 @@ class SQSJobQueue(JobQueue):
 
 
 def get_queue(name: str, create_if_not_exists: bool=False) -> JobQueue:
+    """Gets JobQueue from name.
+    
+    The queue can be either on aws (sqs), if `name' is prefixed by 'aws:',
+    or local (the name must be a local path).
+    """
     if name.startswith('aws:'):
         queue = SQSJobQueue(name[4:])
     else:
