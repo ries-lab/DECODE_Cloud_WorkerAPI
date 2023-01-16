@@ -123,14 +123,14 @@ class SQSJobQueue(JobQueue):
         self.sqs_client = boto3.client("sqs")
         try:
             self.queue_url = self.sqs_client.get_queue_url(QueueName=queue_name)
-        except:
+        except self.sqs_client.exceptions.QueueDoesNotExist:
             pass
     
     def exists(self) -> bool:
         try:
             self.sqs_client.get_queue_url(QueueName=self.queue_name)
             return True
-        except:
+        except self.sqs_client.exceptions.QueueDoesNotExist:
             return False
 
     def create(self):
