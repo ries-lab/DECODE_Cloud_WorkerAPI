@@ -25,12 +25,12 @@ def upload_file(file_path: str, file: UploadFile):
 
 @router.put("/files/{file_path:path}", response_model=schemas.File)
 def rename_file(file_path: str, file: schemas.FileUpdate):
-    return file_crud.rename_file(user_id, file_path, file.name)
+    return file_crud.rename_file(user_id, file_path, file.path)
 
 
 @router.patch("/files/{file_path:path}", response_model=schemas.File)
 def rename_file_patch(file_path: str, file: schemas.FileUpdate):
-    return file_crud.rename_file(user_id, file_path, file.name)
+    return file_crud.rename_file(user_id, file_path, file.path)
 
 
 @router.delete("/files/{file_path:path}", status_code=status.HTTP_204_NO_CONTENT)
