@@ -1,24 +1,25 @@
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from database import get_db
 from schemas import TrainJobCreate, TrainJob
 from crud.model import get_model, update_model_state
 from crud.job import create_train_job
 from models import ModelStates
-from settings import user_id
+from dependencies import current_user_global_dep
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(current_user_global_dep)])
 
 
 @router.post("/train", response_description="Train model", response_model=TrainJob)
 def train_model(
+    request: Request,
     train_job: TrainJobCreate,
-    db: Any = Depends(get_db),
+    db: Any = Depends(get_db)
 ):
     model = get_model(db, train_job.model_id)
-    if not model or model.user_id != user_id:
+    if not model or model.user_id != request.state.current_user.username:
         raise HTTPException(status_code=404, detail=f"Model {train_job.model_id} not found")
     if model.status == ModelStates.trained.value:
         raise HTTPException(status_code=400, detail=f"Model {train_job.model_id} is already trained")

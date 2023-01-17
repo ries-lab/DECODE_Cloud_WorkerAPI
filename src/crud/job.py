@@ -5,6 +5,7 @@ import schemas
 
 
 def create_train_job(db: Session, train_job: schemas.TrainJobCreate):
+    # TODO: Update model last_used
     db_train_job = models.Job(job_type=models.JobTypes.train.value, **train_job.dict())
     if db_train_job.attributes["decode_version"] == "latest":
         db_train_job.attributes["decode_version"] = list(models.DecodeVersions)[-1].value
@@ -15,6 +16,7 @@ def create_train_job(db: Session, train_job: schemas.TrainJobCreate):
 
 
 def create_inference_job(db: Session, inference_job: schemas.InferenceJobCreate):
+    # TODO: Update model last_used
     db_inference_job = models.Job(job_type=models.JobTypes.inference.value, **inference_job.dict())
     db.add(db_inference_job)
     db.commit()

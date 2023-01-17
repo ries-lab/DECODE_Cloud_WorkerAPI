@@ -1,52 +1,54 @@
 from sqlalchemy.orm import Session
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 
 import crud
 import database
 import schemas
-from settings import user_id
+from dependencies import current_user_global_dep
 
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(current_user_global_dep)])
+
+model_not_found_error = HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Model not found")
 
 
 @router.get("/models", response_model=list[schemas.Model])
-def get_models(offset: int = 0, limit: int = 100, db: Session = Depends(database.get_db)):
-    return crud.get_models(db, user_id, offset, limit)
+def get_models(request: Request, offset: int = 0, limit: int = 100, db: Session = Depends(database.get_db)):
+    return crud.get_models(db, request.state.current_user.username, offset, limit)
 
 
 @router.get("/models/{model_id}", response_model=schemas.Model)
-def get_model(model_id: int, db: Session = Depends(database.get_db)):
+def get_model(request: Request, model_id: int, db: Session = Depends(database.get_db)):
     db_model = crud.get_model(db, model_id)
-    if db_model is None:
-        raise HTTPException(status_code=404, detail="Model not found")
+    if db_model is None or db_model.user_id != request.state.current_user.username:
+        raise model_not_found_error
     return db_model
 
 
 @router.post("/models", response_model=schemas.Model)
-def create_model(model: schemas.ModelCreate, db: Session = Depends(database.get_db)):
-    return crud.create_model(db, user_id, model)
+def create_model(request: Request, model: schemas.ModelCreate, db: Session = Depends(database.get_db)):
+    return crud.create_model(db, request.state.current_user.username, model)
 
 
 @router.put("/models/{model_id}", response_model=schemas.Model)
-def update_model(model_id: int, model: schemas.ModelUpdate, db: Session = Depends(database.get_db)):
-    db_model = crud.update_model(db, model_id, model, partial=False)
+def update_model(request: Request, model_id: int, model: schemas.ModelUpdate, db: Session = Depends(database.get_db)):
+    db_model = crud.update_model(db, request.state.current_user.username, model_id, model, partial=False)
     if db_model is None:
-        raise HTTPException(status_code=404, detail="Model not found")
+        raise model_not_found_error
     return db_model
 
 
 @router.patch("/models/{model_id}", response_model=schemas.Model)
-def patch_model(model_id: int, model: schemas.ModelUpdate, db: Session = Depends(database.get_db)):
-    db_model = crud.update_model(db, model_id, model, partial=True)
+def patch_model(request: Request, model_id: int, model: schemas.ModelUpdate, db: Session = Depends(database.get_db)):
+    db_model = crud.update_model(db, request.state.current_user.username, model_id, model, partial=True)
     if db_model is None:
-        raise HTTPException(status_code=404, detail="Model not found")
+        raise model_not_found_error
     return db_model
 
 
 @router.delete("/models/{model_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_model(model_id: int, db: Session = Depends(database.get_db)):
-    if not crud.delete_model(db, model_id):
-        raise HTTPException(status_code=404, detail="Model not found")
+def delete_model(request: Request, model_id: int, db: Session = Depends(database.get_db)):
+    if not crud.delete_model(db, request.state.current_user.username, model_id):
+        raise model_not_found_error
     return {}

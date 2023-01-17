@@ -1,11 +1,18 @@
 import boto3
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
+from fastapi_cloudauth.cognito import CognitoClaims
 
 from schemas.user import User, UserCreate
 from settings import cognito_user_pool_id
+from dependencies import current_user_dep
 
 router = APIRouter()
+
+
+@router.get("/user", response_model=User)
+def get_user(current_user: CognitoClaims = Depends(current_user_dep)):
+    return {"email": current_user.email}
 
 
 @router.post("/user", response_model=User)
