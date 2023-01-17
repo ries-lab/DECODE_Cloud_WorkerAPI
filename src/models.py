@@ -4,7 +4,7 @@ import datetime
 from sqlalchemy import Column, ForeignKey, Integer, String, Enum, DateTime, JSON
 from sqlalchemy.orm import relationship
 
-from database import Base
+from .database import Base
 
 
 class ModelStates(enum.Enum):
@@ -34,6 +34,7 @@ class JobStates(enum.Enum):
 class EnvironmentTypes(enum.Enum):
     cloud = "cloud"
     local = "local"
+    any = "any"
 
 
 class Model(Base):

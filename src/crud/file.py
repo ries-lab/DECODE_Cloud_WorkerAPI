@@ -1,6 +1,3 @@
-from fastapi import HTTPException, status
-import os
-
 from core.filesystem import get_filesystem
 
 

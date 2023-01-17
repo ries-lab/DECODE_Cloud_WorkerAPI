@@ -1,7 +1,7 @@
 import datetime
 
 from pydantic import BaseModel
-from models import DecodeVersions, ModelStates
+from ..models import DecodeVersions, ModelStates
 
 
 class ModelBase(BaseModel):
