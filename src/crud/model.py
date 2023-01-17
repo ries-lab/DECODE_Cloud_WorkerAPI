@@ -33,6 +33,7 @@ def update_model(db: Session, user_id: str, model_id: int, model: schemas.ModelU
 
 def delete_model(db: Session, user_id: str, model_id: int):
     # TODO: delete model files
+    # TODO: delete related jobs
     db_model = db.query(models.Model).where(models.Model.id == model_id).first()
     if not db_model or db_model.user_id != user_id:
         return None

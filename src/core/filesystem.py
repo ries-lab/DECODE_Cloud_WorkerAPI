@@ -22,6 +22,9 @@ class FileSystem(abc.ABC):
     def __init__(self, root_path: str):
         self.root_path = root_path
 
+    def init(self):
+        raise NotImplementedError()
+
     def list_directory(self, path: str = ""):
         normalized_path = path if path.endswith("/") else path + "/"
         if not self.isdir(normalized_path):
@@ -76,6 +79,9 @@ class FileSystem(abc.ABC):
 class LocalFilesystem(FileSystem):
     """ A filesystem that uses the local filesystem. """
 
+    def init(self):
+        os.makedirs(self.root_path, exist_ok=True)
+
     def _directory_contents(self, path: str):
         files = os.listdir(self.full_path(path))
         for file in files:
@@ -122,6 +128,9 @@ class S3FileSystem(FileSystem):
         super().__init__(root_path)
         self.s3_client = s3_client
         self.bucket = bucket
+
+    def init(self):
+        self.s3_client.put_object(Bucket=self.bucket, Key=self.root_path + '/')
 
     def _directory_contents(self, path: str):
         # Get contents of S3 directory
