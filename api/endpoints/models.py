@@ -2,10 +2,10 @@ from sqlalchemy.orm import Session
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 
-import crud
-import database
-import schemas
-from dependencies import current_user_global_dep
+import api.crud as crud
+import api.database as database
+import api.schemas as schemas
+from api.dependencies import current_user_global_dep
 
 
 router = APIRouter(dependencies=[Depends(current_user_global_dep)])

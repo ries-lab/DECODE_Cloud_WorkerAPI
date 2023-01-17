@@ -10,7 +10,7 @@ from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
 from typing import Tuple
 
-from ..models import Job
+from api.models import Job
 
 
 class JobQueue(ABC):

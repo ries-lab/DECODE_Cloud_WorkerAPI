@@ -1,8 +1,8 @@
 from sqlalchemy.orm import Session
 
-import models
-import schemas
-from core.queue import JobQueue
+import api.models as models
+import api.schemas as schemas
+from api.core.queue import JobQueue
 
 
 def create_train_job(db: Session, queues: dict[JobQueue], train_job: schemas.TrainJobCreate):

@@ -1,8 +1,8 @@
 import datetime
 import pytest
 import time
-from src.core.queue import LocalJobQueue, SQSJobQueue
-from src.models import Job, JobStates, JobTypes
+from api.core.queue import LocalJobQueue, SQSJobQueue
+from api.models import Job, JobStates, JobTypes
 
 
 class TestLocalQueue:
@@ -129,4 +129,3 @@ class TestsSQSQueue:
         time.sleep(6)
         # not old enough
         assert populated_queue.dequeue(older_than=5*60) is None
-

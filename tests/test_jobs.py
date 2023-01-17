@@ -3,13 +3,13 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from src.models import ModelStates, EnvironmentTypes
-from src.main import app
-from src.database import get_db, Base
-from src.config import get_settings
-from src.queue import get_queues
-from src.core.queue import get_queue
-from src.crud.model import get_model, update_model_state
+from api.models import ModelStates, EnvironmentTypes
+from api.main import app
+from api.database import get_db, Base
+from api.config import get_settings
+from api.queue import get_queues
+from api.core.queue import get_queue
+from api.crud.model import get_model, update_model_state
 
 
 # Override settings

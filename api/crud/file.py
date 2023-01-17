@@ -1,4 +1,4 @@
-from core.filesystem import get_filesystem
+from api.core.filesystem import get_filesystem
 
 
 def list_user_files(user_id: str, path: str = ''):

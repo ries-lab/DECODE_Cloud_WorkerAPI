@@ -1,6 +1,6 @@
-from .core.queue import get_queue, JobQueue
-from .config import get_settings
-from .models import EnvironmentTypes
+from api.core.queue import get_queue, JobQueue
+from api.config import get_settings
+from api.models import EnvironmentTypes
 
 
 def get_queues() -> JobQueue:

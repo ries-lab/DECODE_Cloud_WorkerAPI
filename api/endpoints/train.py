@@ -2,13 +2,13 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from database import get_db
-from schemas import TrainJobCreate, TrainJob
-from crud.model import get_model, update_model_state
-from crud.job import create_train_job
-from models import ModelStates
-from dependencies import current_user_global_dep
-from queue import get_queues
+from api.database import get_db
+from api.schemas import TrainJobCreate, TrainJob
+from api.crud.model import get_model, update_model_state
+from api.crud.job import create_train_job
+from api.models import ModelStates
+from api.dependencies import current_user_global_dep
+from api.queue import get_queues
 
 router = APIRouter(dependencies=[Depends(current_user_global_dep)])
 

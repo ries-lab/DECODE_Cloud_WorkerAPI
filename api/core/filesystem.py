@@ -199,4 +199,5 @@ class S3FileSystem(FileSystem):
 def get_filesystem(user_id: str):
     """ Get the filesystem to use. """
     s3_client = boto3.client('s3')
+    # TODO: Decide based on settings
     return S3FileSystem('data/' + user_id, s3_client, 'decode-test')

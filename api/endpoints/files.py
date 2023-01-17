@@ -1,8 +1,8 @@
 from fastapi import APIRouter, UploadFile, status, Depends, Request
 
-from crud import file as file_crud
-import schemas
-from dependencies import current_user_global_dep
+from api.crud import file as file_crud
+import api.schemas as schemas
+from api.dependencies import current_user_global_dep
 
 
 router = APIRouter(dependencies=[Depends(current_user_global_dep)])

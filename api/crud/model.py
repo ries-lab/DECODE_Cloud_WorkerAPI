@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 
-from .. import models
-from .. import schemas
+import api.models as models
+import api.schemas as schemas
 
 
 def get_models(db: Session, user_id: str, skip: int = 0, limit: int = 100):
