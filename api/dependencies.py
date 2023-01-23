@@ -1,6 +1,7 @@
 from fastapi import Request, Depends
-from fastapi_cloudauth.cognito import CognitoCurrentUser
+from fastapi_cloudauth.cognito import CognitoCurrentUser, CognitoClaims
 
+from api.core.filesystem import get_filesystem
 from api.settings import cognito_client_id, cognito_region, cognito_user_pool_id
 
 current_user_dep = CognitoCurrentUser(
@@ -10,6 +11,10 @@ current_user_dep = CognitoCurrentUser(
 )
 
 
-async def current_user_global_dep(request: Request, current_user: CognitoCurrentUser = Depends(current_user_dep)):
+async def current_user_global_dep(request: Request, current_user: CognitoClaims = Depends(current_user_dep)):
     request.state.current_user = current_user
     return current_user
+
+
+async def filesystem_dep(current_user: CognitoClaims = Depends(current_user_dep)):
+    return get_filesystem(current_user.username)
