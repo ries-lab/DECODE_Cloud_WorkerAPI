@@ -50,11 +50,13 @@ class FileSystem(abc.ABC):
     def _rename_file(self, path: str, new_name: str):
         raise NotImplementedError()
 
-    def delete(self, path: str):
+    def delete(self, path: str, reinit_if_root: bool = True):
         if not self.exists(path):
             return
         if self.isdir(path):
             self._delete_directory(path)
+            if (path == "/" or path == "") and reinit_if_root:
+                self.init()
         else:
             self._delete_file(path)
 
@@ -85,14 +87,14 @@ class LocalFilesystem(FileSystem):
     def _directory_contents(self, path: str):
         files = os.listdir(self.full_path(path))
         for file in files:
-            yield self.get_file_info(path + file)
+            yield self.get_file_info((path if path != '/' else '') + file)
 
     def get_file_info(self, path: str):
         """ Get file info. """
         metadata = os.stat(self.full_path(path))
         isdir = self.isdir(path)
         return FileInfo(
-            path=path,
+            path=path + '/' if isdir else path,
             type=FileTypes.directory if isdir else FileTypes.file,
             size=humanize.naturalsize(metadata.st_size) if not isdir else ''
         )
