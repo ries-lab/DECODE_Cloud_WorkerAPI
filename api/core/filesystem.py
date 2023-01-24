@@ -106,6 +106,16 @@ class LocalFilesystem(FileSystem):
         with open(self.full_path(path), 'wb') as f:
             shutil.copyfileobj(file, f)
 
+    def delete(self, path: str, reinit_if_root: bool = True):
+        if not self.exists(path):
+            return
+        super().delete(path, reinit_if_root)
+        # Delete empty directories
+        path = path[:-1] if path.endswith('/') else path
+        dir_path = '/'.join(path.split('/')[:-1])
+        if dir_path != '' and not os.listdir(self.full_path(dir_path)):
+            self.delete(dir_path)
+
     def _rename_file(self, path, new_path):
         os.rename(self.full_path(path), self.full_path(new_path))
 
@@ -124,7 +134,7 @@ class LocalFilesystem(FileSystem):
         return os.path.isdir(self.full_path(path))
 
 
-class S3FileSystem(FileSystem):
+class S3Filesystem(FileSystem):
     """ A filesystem that uses S3. """
     def __init__(self, root_path: str, s3_client, bucket):
         super().__init__(root_path)
@@ -200,6 +210,11 @@ class S3FileSystem(FileSystem):
 
 def get_filesystem(user_id: str):
     """ Get the filesystem to use. """
-    s3_client = boto3.client('s3')
-    # TODO: Decide based on settings
-    return S3FileSystem('data/' + user_id, s3_client, 'decode-test')
+    filesystem_setting = os.environ.get('FILESYSTEM')
+    if filesystem_setting == 's3':
+        s3_client = boto3.client('s3')
+        return S3Filesystem('data/' + user_id, s3_client, 'decode-test')
+    elif filesystem_setting == 'local':
+        return LocalFilesystem('data/' + user_id)
+    else:
+        raise ValueError('Invalid filesystem setting')

@@ -1,18 +1,13 @@
 import pytest
 import boto3
 from io import BytesIO
+from .conftest import root_file1_name, root_file2_name, subdir_name, subdir_file1_name, \
+    root_file1_contents, root_file2_contents, subdir_file1_contents
 
 
-from api.core.filesystem import S3FileSystem, FileTypes, FileInfo, FileSystem, LocalFilesystem
+from api.core.filesystem import S3Filesystem, FileTypes, FileInfo, FileSystem, LocalFilesystem
 
 user_dir = 'test_user_dir'
-root_file1_name = 'dfile.txt'
-root_file2_name = 'cfile.txt'
-subdir_name = 'test_dir/'
-subdir_file1_name = 'test_dir/test_file.txt'
-root_file1_contents = 'file contents'
-root_file2_contents = 'file2 contents'
-subdir_file1_contents = 'subdir file contents'
 
 
 @pytest.fixture(scope='class', params=['local', pytest.param('s3', marks=pytest.mark.aws)])
@@ -21,7 +16,7 @@ def filesystem_uninit(request):
         return LocalFilesystem(user_dir)
     else:
         s3_client = boto3.client('s3')
-        return S3FileSystem(user_dir, s3_client, 'decode-test')
+        return S3Filesystem(user_dir, s3_client, 'decode-test')
 
 
 @pytest.fixture(scope="class")
@@ -29,32 +24,6 @@ def filesystem(filesystem_uninit):
     filesystem_uninit.init()
     yield filesystem_uninit
     filesystem_uninit.delete('/', reinit_if_root=False)
-
-
-@pytest.fixture
-def multiple_files(filesystem):
-    filesystem.create_file(root_file1_name, BytesIO(bytes(root_file1_contents, 'utf-8')))
-    filesystem.create_file(root_file2_name, BytesIO(bytes(root_file2_contents, 'utf-8')))
-    filesystem.create_file(subdir_file1_name, BytesIO(bytes(subdir_file1_contents, 'utf-8')))
-    yield
-    filesystem.delete(root_file1_name)
-    filesystem.delete(root_file2_name)
-    filesystem.delete(subdir_file1_name)
-
-
-@pytest.fixture
-def single_file(filesystem):
-    filesystem.create_file(root_file1_name, BytesIO(bytes(root_file1_contents, 'utf-8')))
-    yield
-    filesystem.delete(root_file1_name)
-
-
-@pytest.fixture
-def cleanup_files(filesystem):
-    to_cleanup = []
-    yield to_cleanup
-    for file in to_cleanup:
-        filesystem.delete(file)
 
 
 class TestFilesystemBase:
@@ -159,4 +128,8 @@ class TestFilesystem:
 
     def test_delete_directory(self, filesystem, multiple_files):
         filesystem.delete(subdir_name)
+        assert not filesystem.exists(subdir_name)
+
+    def test_empty_directories_are_deleted(self, filesystem, multiple_files):
+        filesystem.delete(subdir_file1_name)
         assert not filesystem.exists(subdir_name)

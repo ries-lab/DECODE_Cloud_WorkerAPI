@@ -17,7 +17,7 @@ def get_files_from_path(file_path: str, filesystem=Depends(filesystem_dep)):
     return filesystem.list_directory(file_path)
 
 
-@router.post("/files/{file_path:path}", response_model=schemas.File)
+@router.post("/files/{file_path:path}", response_model=schemas.File, status_code=status.HTTP_201_CREATED)
 def upload_file(file_path: str, file: UploadFile, filesystem=Depends(filesystem_dep)):
     filesystem.create_file(file_path, file.file)
     return filesystem.get_file_info(file_path)
