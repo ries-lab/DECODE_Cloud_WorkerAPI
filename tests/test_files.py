@@ -21,7 +21,9 @@ def set_filesystem_env(monkeypatch):
 
 @pytest.fixture
 def filesystem():
-    return get_filesystem(test_username)
+    filesystem = get_filesystem(test_username)
+    yield filesystem
+    filesystem.delete('/', reinit_if_root=False)
 
 
 app.dependency_overrides[current_user_dep] = lambda: CognitoClaims(**{"cognito:username": test_username,

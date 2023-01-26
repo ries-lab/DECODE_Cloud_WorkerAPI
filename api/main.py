@@ -1,8 +1,12 @@
+import dotenv
+
 from fastapi import FastAPI
 from .database import engine, Base
 
 from api.endpoints import models, train, predict, files, token, user
 from api.exceptions import register_exception_handlers
+
+dotenv.load_dotenv()
 
 Base.metadata.create_all(bind=engine)  # TODO: Move to Alembic
 
