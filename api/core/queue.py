@@ -144,7 +144,7 @@ class SQSJobQueue(JobQueue):
         self.queue_name = queue_name
         self.sqs_client = boto3.client("sqs")
         try:
-            self.queue_url = self.sqs_client.get_queue_url(QueueName=queue_name)
+            self.queue_url = self.sqs_client.get_queue_url(QueueName=queue_name)['QueueUrl']
         except self.sqs_client.exceptions.QueueDoesNotExist:
             pass
     
