@@ -1,4 +1,4 @@
-from api.core.queue import get_queue, JobQueue
+from api.core.queue import get_queue
 import api.settings as settings
 from api.models import EnvironmentTypes
 

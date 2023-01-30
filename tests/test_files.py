@@ -4,19 +4,18 @@ import pytest
 from fastapi.testclient import TestClient
 from api.main import app
 from api.core.filesystem import get_filesystem
-from api.dependencies import current_user_dep, CognitoClaims
 from .conftest import root_file1_name, root_file1_contents, root_file2_name, root_file2_contents, subdir_name, \
-    subdir_file1_name, subdir_file1_contents
+    subdir_file1_name, subdir_file1_contents, test_username
+import api.settings as settings
 
 
 client = TestClient(app)
 endpoint = "/files"
-test_username = "test_user"
 
 
 @pytest.fixture(autouse=True)
 def set_filesystem_env(monkeypatch):
-    monkeypatch.setenv("FILESYSTEM", "local")
+    monkeypatch.setattr(settings, "filesystem", "local")
 
 
 @pytest.fixture
@@ -26,11 +25,7 @@ def filesystem():
     filesystem.delete('/', reinit_if_root=False)
 
 
-app.dependency_overrides[current_user_dep] = lambda: CognitoClaims(**{"cognito:username": test_username,
-                                                                      "email": "test@example.com"})
-
-
-def test_auth_required():
+def test_auth_required(require_auth):
     original_overrides = app.dependency_overrides
     app.dependency_overrides = {}
     response = client.get(endpoint)

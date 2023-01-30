@@ -1,56 +1,31 @@
-import os
 import pytest
+
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from api.models import ModelStates, EnvironmentTypes
+from api.models import ModelStates
 from api.main import app
-from api.database import get_db, Base
 from api.queue import get_queues
-from api.core.queue import get_queue
 from api.crud.model import get_model, update_model_state
 import api.settings as settings
 
-
-# Override queue
-def override_get_queues():
-    queues = {env.value: get_queue(getattr(settings, f"{env.name}_queue"), create_if_not_exists=True)
-              for env in EnvironmentTypes}
-    return queues
+testing_local_queue = "testing_local"
+testing_cloud_queue = "testing_cloud"
+testing_any_queue = "testing_any"
 
 
-app.dependency_overrides[get_queues] = override_get_queues
+@pytest.fixture(autouse=True)
+def override_get_queues(monkeypatch):
+    monkeypatch.setattr(settings, "local_queue", testing_local_queue)
+    monkeypatch.setattr(settings, "cloud_queue", testing_cloud_queue)
+    monkeypatch.setattr(settings, "any_queue", testing_any_queue)
 
-# Override DB
-engine = create_engine(
-    settings.database_url, connect_args={"check_same_thread": False}
-)
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base.metadata.create_all(bind=engine)
-
-
-def override_get_db():
-    db = TestingSessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-app.dependency_overrides[get_db] = override_get_db
 
 # Client
 client = TestClient(app)
 
 
-@pytest.fixture(scope="module")
-def db():
-    return next(override_get_db())
-
-
 @pytest.fixture
 def any_queue():
-    queues = override_get_queues()
+    queues = get_queues()
     yield queues['any']
     for queue in queues.values():
         queue.delete()  # cleanup
@@ -58,7 +33,7 @@ def any_queue():
 
 @pytest.fixture
 def local_queue():
-    queues = override_get_queues()
+    queues = get_queues()
     yield queues['local']
     for queue in queues.values():
         queue.delete()  # cleanup
@@ -75,7 +50,7 @@ def model_untrained():
 def model_trained(db):
     response = client.post("/models", json={"name": "test_trained"})
     model_id = response.json()["id"]
-    update_model_state(db, get_model(db, model_id), ModelStates.trained).status
+    update_model_state(db, get_model(db, model_id), ModelStates.trained)
     return model_id
 
 

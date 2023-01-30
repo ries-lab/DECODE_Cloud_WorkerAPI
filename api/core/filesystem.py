@@ -6,8 +6,9 @@ from collections import namedtuple
 from pathlib import PurePosixPath
 
 import humanize
-
 import boto3
+
+import api.settings as settings
 
 
 class FileTypes(enum.Enum):
@@ -210,11 +211,10 @@ class S3Filesystem(FileSystem):
 
 def get_filesystem(user_id: str):
     """ Get the filesystem to use. """
-    filesystem_setting = os.environ.get('FILESYSTEM')
-    if filesystem_setting == 's3':
+    if settings.filesystem == 's3':
         s3_client = boto3.client('s3')
         return S3Filesystem('data/' + user_id, s3_client, 'decode-test')
-    elif filesystem_setting == 'local':
+    elif settings.filesystem == 'local':
         return LocalFilesystem('data/' + user_id)
     else:
         raise ValueError('Invalid filesystem setting')
