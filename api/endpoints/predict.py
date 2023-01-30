@@ -6,7 +6,6 @@ from api.database import get_db
 from api.schemas import InferenceJob, InferenceJobCreate
 from api.crud.model import get_model
 from api.crud.job import create_inference_job
-from api.models import ModelStates
 from api.dependencies import current_user_global_dep
 from api.queue import get_queues
 
@@ -23,8 +22,6 @@ def predict(
     model = get_model(db, infer_job.model_id)
     if not model or model.user_id != request.state.current_user.username:
         raise HTTPException(status_code=404, detail=f"Model {infer_job.model_id} not found")
-    if model.status != ModelStates.trained.value:
-        raise HTTPException(status_code=400, detail=f"Model {infer_job.model_id} has not been trained")
 
-    db_train_job = create_inference_job(db, queues, infer_job)
+    db_train_job = create_inference_job(db, model, queues, infer_job)
     return db_train_job
