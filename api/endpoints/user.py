@@ -6,7 +6,7 @@ from fastapi_cloudauth.cognito import CognitoClaims
 from api.schemas.user import User, UserCreate
 from api.settings import cognito_user_pool_id
 from api.dependencies import current_user_dep
-from api.core.filesystem import get_filesystem
+from api.core.filesystem import get_user_filesystem
 
 router = APIRouter()
 
@@ -36,7 +36,7 @@ def register_user(user: UserCreate):
             Password=user.password,
             Permanent=True
         )
-        filesystem = get_filesystem(response["User"]["Username"])
+        filesystem = get_user_filesystem(response["User"]["Username"])
         filesystem.init()
     except client.exceptions.UsernameExistsException:
         raise HTTPException(status_code=400, detail="User already exists")

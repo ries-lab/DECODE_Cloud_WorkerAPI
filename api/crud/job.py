@@ -6,11 +6,27 @@ from fastapi import HTTPException
 import api.models as models
 import api.schemas as schemas
 from api.core.queue import JobQueue
+from api.core.filesystem import get_user_filesystem, get_filesystem_with_root
 
 
 def enqueue_job(job: models.Job, queues: dict[JobQueue]):
-    env = job.attributes["environment"] if "environment" in job.attributes else models.EnvironmentTypes.any.value
-    queues[env].enqueue(job)
+    env = job.environment if job.environment else models.EnvironmentTypes.any.value
+    user_fs = get_user_filesystem(user_id=job.model.user_id)
+    fs = get_filesystem_with_root('')
+    queue_item = {
+        "job_id": job.id,
+        "model_id": job.model_id,
+        "environment": env,
+        "job_type": job.job_type,
+        "date_created": job.date_created,
+        "decode_version": job.model.decode_version,
+        "model_path": fs.full_path_uri(job.model.model_path),
+        "attributes": job.attributes if job.job_type == models.JobTypes.inference.value else {
+            "config_file": user_fs.full_path_uri(job.model.config_file),
+            "calibration_file": user_fs.full_path_uri(job.model.calibration_file)
+        },
+    }
+    queues[env].enqueue(queue_item)
 
 
 def get_jobs(db: Session, user_id: int, offset: int = 0, limit: int = 100):
@@ -33,6 +49,7 @@ def create_train_job(db: Session, model: models.Model, queues: dict[JobQueue], t
     model.last_used = datetime.now()
     model.status = models.ModelStates.training.value
     db.add(model)
+    db.flush()
 
     enqueue_job(db_train_job, queues)
 

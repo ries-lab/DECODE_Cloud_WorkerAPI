@@ -3,7 +3,7 @@ from io import BytesIO
 import pytest
 from fastapi.testclient import TestClient
 from api.main import app
-from api.core.filesystem import get_filesystem
+from api.core.filesystem import get_user_filesystem
 from .conftest import root_file1_name, root_file1_contents, root_file2_name, root_file2_contents, subdir_name, \
     subdir_file1_name, subdir_file1_contents, test_username
 import api.settings as settings
@@ -20,7 +20,7 @@ def set_filesystem_env(monkeypatch):
 
 @pytest.fixture
 def filesystem():
-    filesystem = get_filesystem(test_username)
+    filesystem = get_user_filesystem(test_username)
     yield filesystem
     filesystem.delete('/', reinit_if_root=False)
 

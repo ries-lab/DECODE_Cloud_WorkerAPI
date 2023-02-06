@@ -11,5 +11,6 @@ cognito_region = os.environ.get("COGNITO_REGION")
 cognito_secret = os.environ.get("COGNITO_SECRET")
 
 filesystem = os.environ.get("FILESYSTEM")
+s3_bucket = os.environ.get("S3_BUCKET")
 user_data_root_path = os.environ.get("USER_DATA_ROOT_PATH")
 models_root_path = os.environ.get("MODELS_ROOT_PATH")

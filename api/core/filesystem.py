@@ -73,6 +73,9 @@ class FileSystem(abc.ABC):
     def isdir(self, path: str):
         raise NotImplementedError()
 
+    def full_path_uri(self, path: str):
+        raise NotImplementedError()
+
     def full_path(self, path: str):
         # For some reason, PurePosixPath returns the root path if one of the components has root path
         full = str(PurePosixPath(self.root_path, path[1:] if path.startswith("/") else path))
@@ -133,6 +136,9 @@ class LocalFilesystem(FileSystem):
     def isdir(self, path):
         """ Check if a path is a directory. """
         return os.path.isdir(self.full_path(path))
+
+    def full_path_uri(self, path):
+        return self.full_path(path)
 
 
 class S3Filesystem(FileSystem):
@@ -208,13 +214,21 @@ class S3Filesystem(FileSystem):
     def isdir(self, path):
         return self.exists(path) if path.endswith('/') else False
 
+    def full_path_uri(self, path):
+        return 's3://' + self.bucket + '/' + self.full_path(path)
 
-def get_filesystem(user_id: str):
+
+def get_filesystem_with_root(root_path: str):
     """ Get the filesystem to use. """
     if settings.filesystem == 's3':
         s3_client = boto3.client('s3')
-        return S3Filesystem(settings.user_data_root_path + user_id, s3_client, 'decode-test')
+        return S3Filesystem(root_path, s3_client, settings.s3_bucket)
     elif settings.filesystem == 'local':
-        return LocalFilesystem(settings.user_data_root_path + user_id)
+        return LocalFilesystem(root_path)
     else:
         raise ValueError('Invalid filesystem setting')
+
+
+def get_user_filesystem(user_id: str):
+    """ Get the filesystem to use for a user. """
+    return get_filesystem_with_root(settings.user_data_root_path + user_id)

@@ -7,10 +7,7 @@ import pickle
 from abc import ABC, abstractmethod
 from dict_hash import sha256
 from fastapi import HTTPException
-from fastapi.encoders import jsonable_encoder
 from typing import Tuple
-
-from api.models import Job
 
 
 class JobQueue(ABC):
@@ -36,7 +33,7 @@ class JobQueue(ABC):
         pass
 
     @abstractmethod
-    def enqueue(self, job: Job):
+    def enqueue(self, item: dict):
         """Push a new job to the queue.
         """
         pass
@@ -57,22 +54,20 @@ class JobQueue(ABC):
         """
         pass
 
-    def dequeue(self, older_than: float=0) -> Job | None:
+    def dequeue(self, older_than: float = 0) -> dict | None:
         """Peek last element and remove it from the queue if it is older than `older_than'.
         """
         # get last element
-        job_json, receipt_handle = self.peek()
+        item, receipt_handle = self.peek()
         # if element found
-        if job_json:
-            # get job
-            job = Job(**job_json)
+        if item:
             # check "old enough"
             time_now = datetime.datetime.utcnow()
-            job_age = time_now - datetime.datetime.fromisoformat(job.date_created)
-            if job_age > datetime.timedelta(seconds=older_than):
+            item_age = time_now - datetime.datetime.fromisoformat(item['date_created'])
+            if item_age > datetime.timedelta(seconds=older_than):
                 # remove from queue and return
                 self.pop(receipt_handle)
-                return job
+                return item
         return None
 
 
@@ -99,12 +94,12 @@ class LocalJobQueue(JobQueue):
         except:
             pass
     
-    def enqueue(self, job: Job):
+    def enqueue(self, item: dict):
         with open(self.queue_path, 'rb+') as f:
             # Read in
             queue = pickle.load(f)
             # Push new job
-            queue.append(jsonable_encoder(job))
+            queue.append(item)
             # Overwrite
             f.seek(0)
             f.truncate()
@@ -114,8 +109,8 @@ class LocalJobQueue(JobQueue):
         with open(self.queue_path, 'rb+') as f:
             queue = pickle.load(f)
         if len(queue):
-            job_json = queue[0]
-            return job_json, sha256(job_json)
+            item = queue[0]
+            return item, sha256(item)
         return None, None
 
     def pop(self, receipt_handle):
@@ -140,7 +135,7 @@ class SQSJobQueue(JobQueue):
 
     def __init__(self, queue_name: str):
         if not queue_name.endswith('.fifo'):
-            queue_name = queue_name + '.fifo'
+            queue_name += '.fifo'
         self.queue_name = queue_name
         self.sqs_client = boto3.client("sqs")
         try:
@@ -163,11 +158,11 @@ class SQSJobQueue(JobQueue):
     def delete(self):
         self.sqs_client.delete_queue(QueueUrl=self.queue_url)
 
-    def enqueue(self, job: Job):
+    def enqueue(self, item: dict):
         try:
             self.sqs_client.send_message(
                 QueueUrl=self.queue_url,
-                MessageBody=json.dumps(jsonable_encoder(job)),
+                MessageBody=json.dumps(item),
                 MessageGroupId="0",
             )
         except botocore.exceptions.ClientError as error:
@@ -176,7 +171,7 @@ class SQSJobQueue(JobQueue):
                 status_code=500,
                 detail=f"Error sending message to SQS queue: {error}.")
 
-    def peek(self) -> Tuple[dict, str | None]:
+    def peek(self) -> Tuple[dict | None, str | None]:
         try:
             response = self.sqs_client.receive_message(
                 QueueUrl=self.queue_url,
@@ -190,9 +185,9 @@ class SQSJobQueue(JobQueue):
         if len(response.get('Messages', [])):
             message = response['Messages'][0]
             message_body = message['Body']
-            job_json = json.loads(message_body)
+            item = json.loads(message_body)
             receipt_handle = message['ReceiptHandle']
-            return job_json, receipt_handle
+            return item, receipt_handle
         return None, None
 
     def pop(self, receipt_handle: str | None):

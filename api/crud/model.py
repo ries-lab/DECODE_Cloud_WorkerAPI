@@ -6,11 +6,11 @@ from fastapi import HTTPException
 import api.models as models
 import api.schemas as schemas
 import api.settings as settings
-from api.core.filesystem import get_filesystem
+from api.core.filesystem import get_user_filesystem
 
 
 def validate_model(model: models.Model):
-    filesystem = get_filesystem(model.user_id)
+    filesystem = get_user_filesystem(model.user_id)
     if not filesystem.exists(model.config_file):
         raise HTTPException(status_code=400, detail=f"Config file {model.config_file} does not exist")
     if not filesystem.exists(model.calibration_file):
@@ -43,7 +43,7 @@ def delete_model(db: Session, user_id: str, model_id: int):
     db_model = db.query(models.Model).where(models.Model.id == model_id).first()
     if not db_model or db_model.user_id != user_id:
         return None
-    filesystem = get_filesystem(user_id)
+    filesystem = get_user_filesystem(user_id)
     filesystem.delete(db_model.model_path)
     db.delete(db_model)
     db.commit()
