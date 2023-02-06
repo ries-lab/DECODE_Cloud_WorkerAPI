@@ -20,14 +20,11 @@ class JobReadBase(BaseModel):
 
 
 class TrainJobAttributes(BaseModel):
-    config_file: str
-    model_file: str
-    inference_config_file: str
-    decode_version: DecodeVersions | Literal["latest"] = "latest"
+    pass
 
 
 class TrainJobBase(JobBase):
-    attributes: TrainJobAttributes
+    attributes: TrainJobAttributes = {}
 
 
 class TrainJobCreate(TrainJobBase):

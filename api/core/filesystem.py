@@ -213,8 +213,8 @@ def get_filesystem(user_id: str):
     """ Get the filesystem to use. """
     if settings.filesystem == 's3':
         s3_client = boto3.client('s3')
-        return S3Filesystem('data/' + user_id, s3_client, 'decode-test')
+        return S3Filesystem(settings.user_data_root_path + user_id, s3_client, 'decode-test')
     elif settings.filesystem == 'local':
-        return LocalFilesystem('data/' + user_id)
+        return LocalFilesystem(settings.user_data_root_path + user_id)
     else:
         raise ValueError('Invalid filesystem setting')

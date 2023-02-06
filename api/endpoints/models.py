@@ -31,22 +31,6 @@ def create_model(request: Request, model: schemas.ModelCreate, db: Session = Dep
     return crud.create_model(db, request.state.current_user.username, model)
 
 
-@router.put("/models/{model_id}", response_model=schemas.Model)
-def update_model(request: Request, model_id: int, model: schemas.ModelUpdate, db: Session = Depends(database.get_db)):
-    db_model = crud.update_model(db, request.state.current_user.username, model_id, model, partial=False)
-    if db_model is None:
-        raise model_not_found_error
-    return db_model
-
-
-@router.patch("/models/{model_id}", response_model=schemas.Model)
-def patch_model(request: Request, model_id: int, model: schemas.ModelUpdate, db: Session = Depends(database.get_db)):
-    db_model = crud.update_model(db, request.state.current_user.username, model_id, model, partial=True)
-    if db_model is None:
-        raise model_not_found_error
-    return db_model
-
-
 @router.delete("/models/{model_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_model(request: Request, model_id: int, db: Session = Depends(database.get_db)):
     if not crud.delete_model(db, request.state.current_user.username, model_id):

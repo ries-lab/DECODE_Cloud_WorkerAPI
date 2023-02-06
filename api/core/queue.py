@@ -209,7 +209,7 @@ class SQSJobQueue(JobQueue):
         return response
 
 
-def get_queue(name: str, create_if_not_exists: bool=False) -> JobQueue:
+def get_queue(name: str, create_if_not_exists: bool = True) -> JobQueue:
     """Gets JobQueue from name.
     
     The queue can be either on aws (sqs), if `name' is prefixed by 'aws:',

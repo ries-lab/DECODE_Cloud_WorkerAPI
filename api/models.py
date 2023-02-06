@@ -44,14 +44,14 @@ class Model(Base):
     name = Column(String, nullable=False)
     status = Column(String, Enum(ModelStates), nullable=False, default=ModelStates.untrained.value)
     config_file = Column(String)
+    calibration_file = Column(String)
     date_created = Column(DateTime, default=datetime.datetime.utcnow)
-    inference_config_file = Column(String)
     date_trained = Column(DateTime)
     last_used = Column(DateTime)
-    model_file = Column(String)
+    model_path = Column(String)
     decode_version = Column(String, Enum(DecodeVersions))
     user_id = Column(String, nullable=False)
-    jobs = relationship("Job", back_populates="model")
+    jobs = relationship("Job", back_populates="model", cascade="delete")
 
 
 class Job(Base):
