@@ -2,7 +2,7 @@ from typing import Literal
 import datetime
 from pydantic import BaseModel
 
-from api.models import EnvironmentTypes, DecodeVersions, JobStates
+from api.models import EnvironmentTypes, JobStates
 
 
 class JobBase(BaseModel):
@@ -39,7 +39,8 @@ class TrainJob(TrainJobBase, JobReadBase):
 
 
 class InferenceJobAttributes(BaseModel):
-    data_file: str
+    frames_file: str
+    frame_meta_file: str
 
 
 class InferenceJobBase(JobBase):
