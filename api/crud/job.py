@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from fastapi import HTTPException
 
 import api.models as models
@@ -11,6 +11,14 @@ from api.core.queue import JobQueue
 def enqueue_job(job: models.Job, queues: dict[JobQueue]):
     env = job.attributes["environment"] if "environment" in job.attributes else models.EnvironmentTypes.any.value
     queues[env].enqueue(job)
+
+
+def get_jobs(db: Session, user_id: int, offset: int = 0, limit: int = 100):
+    return db.query(models.Job).join(models.Model).filter(models.Model.user_id == user_id).offset(offset).limit(limit).all()
+
+
+def get_job(db: Session, job_id: int):
+    return db.query(models.Job).options(joinedload(models.Job.model)).get(job_id)
 
 
 def create_train_job(db: Session, model: models.Model, queues: dict[JobQueue], train_job: schemas.TrainJobCreate):
