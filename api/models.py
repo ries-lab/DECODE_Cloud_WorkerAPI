@@ -34,7 +34,7 @@ class JobStates(enum.Enum):
 class EnvironmentTypes(enum.Enum):
     cloud = "cloud"
     local = "local"
-    any = None
+    any = "any"
 
 
 class Model(Base):
@@ -65,5 +65,5 @@ class Job(Base):
     status = Column(String, Enum(JobStates), nullable=False, default=JobStates.pending.value)
     model_id = Column(Integer, ForeignKey("models.id"), nullable=False)
     model = relationship("Model", back_populates="jobs")
-    environment = Column(Enum(EnvironmentTypes))
+    environment = Column(String, Enum(EnvironmentTypes))
     attributes = Column(JSON, nullable=False)
