@@ -1,22 +1,46 @@
 import pytest
-
+import uvicorn
 from fastapi.testclient import TestClient
+from multiprocessing import Process
+
 from api.models import ModelStates
 from api.main import app
-from api.queue import get_queues
 from api.crud.model import get_model, update_model_state
-import api.settings as settings
+import api.crud.model
+import api.settings
+from workerfacing_api.core.queue import RDSJobQueue
+from workerfacing_api.main import workerfacing_app
+from workerfacing_api.queue import get_queue
 
-testing_local_queue = "testing_local"
-testing_cloud_queue = "testing_cloud"
-testing_any_queue = "testing_any"
+testing_jobs_db = "sqlite:///./test_jobs.db"
+testing_jobs_port = 5000
+
+queue_ = RDSJobQueue(testing_jobs_db)
 
 
-@pytest.fixture(autouse=True)
-def override_get_queues(monkeypatch):
-    monkeypatch.setattr(settings, "local_queue", testing_local_queue)
-    monkeypatch.setattr(settings, "cloud_queue", testing_cloud_queue)
-    monkeypatch.setattr(settings, "any_queue", testing_any_queue)
+def override_get_queue():
+    return queue_
+
+
+workerfacing_app.dependency_overrides[get_queue] = override_get_queue
+
+
+@pytest.fixture
+def queue_server(monkeypatch):
+    proc = Process(target=lambda: uvicorn.run(workerfacing_app, port=testing_jobs_port), args=(), daemon=True)
+    proc.start()
+    yield True
+    proc.kill()
+
+
+@pytest.fixture
+def queue(monkeypatch, queue_server):
+    monkeypatch.setattr(api.settings, "workerfacing_api_url", f"http://127.0.0.1:{testing_jobs_port}")
+    #queue_.create(err_on_exists=True)
+    queue_.create(err_on_exists=False)
+    monkeypatch.setattr(api.crud.model, "validate_model", lambda x: None)  # allow model creation without files
+    yield queue_
+    #queue_.delete()
 
 
 # Client
@@ -24,46 +48,30 @@ client = TestClient(app)
 
 
 @pytest.fixture
-def any_queue():
-    queues = get_queues()
-    yield queues['any']
-    for queue in queues.values():
-        queue.delete()  # cleanup
-
-
-@pytest.fixture
-def local_queue():
-    queues = get_queues()
-    yield queues['local']
-    for queue in queues.values():
-        queue.delete()  # cleanup
-
-
-@pytest.fixture
-def model_untrained():
-    response = client.post("/models", json={"name": "test_untrained"})
+def model_untrained(queue):
+    response = client.post("/models", json={"name": "test_untrained", "config_file": "", "calibration_file": ""})
     model_id = response.json()["id"]
     return model_id
 
 
 @pytest.fixture
-def model_trained(db):
-    response = client.post("/models", json={"name": "test_trained"})
+def model_trained(db, queue):
+    response = client.post("/models", json={"name": "test_trained", "config_file": "", "calibration_file": ""})
     model_id = response.json()["id"]
     update_model_state(db, get_model(db, model_id), ModelStates.trained)
     return model_id
 
 
 @pytest.fixture
-def model_training(db):
-    response = client.post("/models", json={"name": "test_training"})
+def model_training(db, queue):
+    response = client.post("/models", json={"name": "test_training", "config_file": "", "calibration_file": ""})
     model_id = response.json()["id"]
     update_model_state(db, get_model(db, model_id), ModelStates.training)
     return model_id
 
 
 @pytest.fixture
-def model_unexistent():
+def model_unexistent(queue):
     response = client.get("/models")
     model_id = max([m["id"] for m in response.json()]) + 1
     return model_id
@@ -71,44 +79,45 @@ def model_unexistent():
 
 class TestTrain:
 
-    def test_train(self, any_queue, local_queue, model_untrained):
+    def test_train(self, queue, model_untrained):
         client.post("/train", json={
             "model_id": model_untrained,
-            "attributes": {"config_file": "", "model_file": "", "inference_config_file": ""}}).json()
+            "environment": "local",
+            "attributes": {"config_file": "", "model_file": "", "inference_config_file": ""}})
         # test enqueued
-        assert any_queue.peek()[0]["model_id"] == model_untrained
+        assert queue.peek(env="local")[0]["model_id"] == model_untrained
         # test not enqueued in other queue
-        peek = local_queue.peek()[0]
+        peek = queue.peek(env="cloud")[0]
         assert not peek or peek["model_id"] != model_trained
         # test model status
         assert client.get(f"/models/{model_untrained}").json()["status"] == ModelStates.training.value
     
-    def test_train_model_trained(self, any_queue, model_trained):
+    def test_train_model_trained(self, queue, model_trained):
         resp = client.post("/train", json={
             "model_id": model_trained,
             "attributes": {"config_file": "", "model_file": "", "inference_config_file": ""}})
         # test not enqueued
-        peek = any_queue.peek()[0]
+        peek = queue.peek(env=None)[0]
         assert not peek or peek["model_id"] != model_trained
         # test error code
         assert resp.status_code == 400
 
-    def test_train_model_training(self, any_queue, model_training):
+    def test_train_model_training(self, queue, model_training):
         resp = client.post("/train", json={
             "model_id": model_training,
             "attributes": {"config_file": "", "model_file": "", "inference_config_file": ""}})
         # test not enqueued
-        peek = any_queue.peek()[0]
+        peek = queue.peek(env=None)[0]
         assert not peek or peek["model_id"] != model_trained
         # test error code
         assert resp.status_code == 400
 
-    def test_train_model_unexistent(self, any_queue, model_unexistent):
+    def test_train_model_unexistent(self, queue, model_unexistent):
         resp = client.post("/train", json={
             "model_id": model_unexistent,
             "attributes": {"config_file": "", "model_file": "", "inference_config_file": ""}})
         # test not enqueued
-        peek = any_queue.peek()[0]
+        peek = queue.peek(env=None)[0]
         assert not peek or peek["model_id"] != model_trained
         # test error code
         assert resp.status_code == 404
@@ -116,39 +125,39 @@ class TestTrain:
 
 class TestPredict:
 
-    def test_predict(self, any_queue, model_trained):
-        client.post("/predict", json={
+    def test_predict(self, queue, model_trained):
+        resp = client.post("/predict", json={
             "model_id": model_trained,
-            "attributes": {"data_file": ""}})
+            "attributes": {"frames_file": "", "frame_meta_file": ""}})
         # test enqueued
-        assert any_queue.peek()[0]["model_id"] == model_trained
+        assert queue.peek(env=None)[0]["model_id"] == model_trained
 
-    def test_predict_model_untrained(self, any_queue, model_untrained):
+    def test_predict_model_untrained(self, queue, model_untrained):
         resp = client.post("/predict", json={
                 "model_id": model_untrained,
-                "attributes": {"data_file": ""}})
+                "attributes": {"frames_file": "", "frame_meta_file": ""}})
         # test not enqueued
-        peek = any_queue.peek()[0]
+        peek = queue.peek(env=None)[0]
         assert not peek or peek["model_id"] != model_trained
         # test error code
         assert resp.status_code == 400
 
-    def test_predict_model_training(self, any_queue, model_training):
+    def test_predict_model_training(self, queue, model_training):
         resp = client.post("/predict", json={
                 "model_id": model_training,
-                "attributes": {"data_file": ""}})
+                "attributes": {"frames_file": "", "frame_meta_file": ""}})
         # test not enqueued
-        peek = any_queue.peek()[0]
+        peek = queue.peek(env=None)[0]
         assert not peek or peek["model_id"] != model_trained
         # test error code
         assert resp.status_code == 400
 
-    def test_predict_model_unexistent(self, any_queue, model_unexistent):
+    def test_predict_model_unexistent(self, queue, model_unexistent):
         resp = client.post("/predict", json={
                 "model_id": model_unexistent,
-                "attributes": {"data_file": ""}})
+                "attributes": {"frames_file": "", "frame_meta_file": ""}})
         # test not enqueued
-        peek = any_queue.peek()[0]
+        peek = queue.peek(env=None)[0]
         assert not peek or peek["model_id"] != model_trained
         # test error code
         assert resp.status_code == 404
