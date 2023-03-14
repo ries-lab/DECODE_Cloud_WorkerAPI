@@ -86,7 +86,7 @@ def populated_queue(queue, jobs, env_name):
     queue.enqueue(env=env_name, item=job1)
     queue.enqueue(env=env_name, item=job2)
     queue.enqueue(env=None, item=job3)
-    queue.enqueue(env=f"not_{env_name}", item=job4)
+    queue.enqueue(env=f"not-{env_name}", item=job4)
     return queue
 
 
@@ -112,7 +112,7 @@ class TestLocalQueue:
         
     @pytest.fixture
     def env_name(self):
-        return 'test_queue'
+        return 'test-queue'
 
     def test_create_queue(self, queue, env_name):
         # test queue is empty
@@ -142,20 +142,14 @@ class TestLocalQueue:
         assert populated_queue.dequeue(env=env_name, older_than=5*60) is None
 
 
-@pytest.mark.skip("too slow in development")
+#@pytest.mark.skip("too slow in development")
 class TestsSQSQueue(TestLocalQueue):
-    i = 0
-
-    @pytest.fixture
-    def env_name(self):
-        TestsSQSQueue.i = TestsSQSQueue.i + 1
-        queue_name = f"decode_test_sqs_queue_{self.i}"
-        return queue_name
     
     @pytest.fixture
     def queue(self, env_name):
+        time.sleep(65)  # timeout to recreate queue
         # need new env name for each test (SQS queues can't be recreated after less than 60 seconds)
-        job_queue = SQSJobQueue([env_name])
+        job_queue = SQSJobQueue([env_name, f"not-{env_name}"])
         job_queue.create(err_on_exists=False)
         yield job_queue
         job_queue.delete()

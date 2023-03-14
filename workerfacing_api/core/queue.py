@@ -133,6 +133,8 @@ class SQSJobQueue(JobQueue):
     def __init__(self, envs: list[str | None], sqs_client = None):
         self.sqs_client = sqs_client or boto3.client('sqs')
         self.queue_names = {}
+        if None not in envs:
+            envs = [None] + envs
         for env in envs:
             self.queue_names[env] = f'{str(env)}_queue.fifo'
         self.queue_urls = dict()
