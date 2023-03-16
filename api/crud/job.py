@@ -69,8 +69,12 @@ def create_inference_job(db: Session, model: models.Model, queues: dict[JobQueue
     if model.status != models.ModelStates.trained.value:
         raise HTTPException(status_code=400, detail=f"Model {inference_job.model_id} has not been trained")
 
+    filesystem = get_user_filesystem(model.user_id)
+    for name, fit_file in inference_job.attributes.dict().items():
+        if not filesystem.exists(fit_file):
+            raise HTTPException(status_code=400, detail=f"File {fit_file} does not exist")
+
     db_inference_job = models.Job(job_type=models.JobTypes.inference.value, **inference_job.dict())
-    # TODO: Verify attributes - e.g data exist, etc..
     db.add(db_inference_job)
 
     model.last_used = db_inference_job.created_at

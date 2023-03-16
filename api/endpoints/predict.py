@@ -1,5 +1,6 @@
 from typing import Any
 
+import pydantic
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from api.database import get_db
@@ -8,6 +9,7 @@ from api.crud.model import get_model
 from api.crud.job import create_inference_job
 from api.dependencies import current_user_global_dep
 from api.queue import get_queues
+from api.settings import version_config
 
 router = APIRouter(dependencies=[Depends(current_user_global_dep)])
 
@@ -23,5 +25,11 @@ def predict(
     if not model or model.user_id != request.state.current_user.username:
         raise HTTPException(status_code=404, detail=f"Model {infer_job.model_id} not found")
 
-    db_train_job = create_inference_job(db, model, queues, infer_job)
-    return db_train_job
+    attr_type_map = {item: (str, ...) for item in version_config[model.decode_version]['entrypoints']['fit']}
+    InferJobAttributes = pydantic.create_model('InferJobAttributes', **attr_type_map)
+    try:
+        InferJobAttributes.parse_obj(infer_job.attributes.dict())
+    except pydantic.ValidationError as e:
+        raise HTTPException(status_code=400, detail=e.errors())
+
+    return create_inference_job(db, model, queues, infer_job)

@@ -50,8 +50,9 @@ class TrainJob(TrainJobBase, JobReadBase):
 
 
 class InferenceJobAttributes(BaseModel):
-    frames_file: str
-    frame_meta_file: str
+
+    class Config:
+        extra = "allow"
 
 
 class InferenceJobBase(JobBase):
