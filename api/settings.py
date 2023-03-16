@@ -1,4 +1,5 @@
 import os
+import yaml
 
 database_url = os.environ.get("DATABASE_URL", "sqlite:///./sql_app.db")
 local_queue = os.environ.get("LOCAL_QUEUE")
@@ -14,3 +15,8 @@ filesystem = os.environ.get("FILESYSTEM")
 s3_bucket = os.environ.get("S3_BUCKET")
 user_data_root_path = os.environ.get("USER_DATA_ROOT_PATH")
 models_root_path = os.environ.get("MODELS_ROOT_PATH")
+
+version_config_file = os.environ.get("VERSION_CONFIG_FILE", "version_config.yaml")
+
+with open(version_config_file) as f:
+    version_config = yaml.safe_load(f)['api']['versions']

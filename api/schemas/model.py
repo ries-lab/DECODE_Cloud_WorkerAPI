@@ -1,16 +1,12 @@
 import datetime
-from typing import Literal
 
 from pydantic import BaseModel
 
-from api.models import DecodeVersions, ModelStates
+from api.models import ModelStates
 
 
 class ModelBase(BaseModel):
     name: str
-    config_file: str
-    calibration_file: str
-    decode_version: DecodeVersions | Literal["latest"] = "latest"
 
 
 class ModelCreate(ModelBase):
@@ -23,6 +19,8 @@ class Model(ModelBase):
     date_created: datetime.datetime
     last_used: datetime.datetime | None
     date_trained: datetime.datetime | None
+    decode_version: str | None
+    train_attributes: dict | None
 
     class Config:
         orm_mode = True

@@ -1,0 +1,29 @@
+api:
+  versions:
+    v0.10.0:
+      image_url: https://hub.docker/decode/v0.10.0
+      aws_batch:
+        job_definition: decode-v0.10.0
+        revision: 6
+      entrypoints:
+        train:
+          config_path:
+          data_path:
+        fit:
+          config_path:
+          meta_path:
+          data_path:
+      hardware:
+        gpu_mem: 10  # MB
+    v0.11.0:
+      entrypoints:
+        train:
+          config_path:
+          data_path:
+          data_2_path:
+        fit:
+          config_path:
+          meta_path:
+          data_path:
+      hardware:
+        gpu_mem: 10  # MB

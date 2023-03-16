@@ -14,11 +14,6 @@ class ModelStates(enum.Enum):
     error = "error"
 
 
-class DecodeVersions(enum.Enum):
-    v1 = "v1"
-    v2 = "v2"
-
-
 class JobTypes(enum.Enum):
     train = "train"
     inference = "inference"
@@ -43,13 +38,12 @@ class Model(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
     status = Column(String, Enum(ModelStates), nullable=False, default=ModelStates.untrained.value)
-    config_file = Column(String)
-    calibration_file = Column(String)
     date_created = Column(DateTime, default=datetime.datetime.utcnow)
     date_trained = Column(DateTime)
     last_used = Column(DateTime)
     model_path = Column(String)
-    decode_version = Column(String, Enum(DecodeVersions))
+    decode_version = Column(String, nullable=True)
+    train_attributes = Column(JSON, nullable=True)
     user_id = Column(String, nullable=False)
     jobs = relationship("Job", back_populates="model", cascade="delete")
 

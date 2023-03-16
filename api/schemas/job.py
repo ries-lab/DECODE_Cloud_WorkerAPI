@@ -3,6 +3,7 @@ import datetime
 from pydantic import BaseModel
 
 from api.models import EnvironmentTypes, JobStates
+import api.settings as settings
 
 
 class JobBase(BaseModel):
@@ -19,12 +20,22 @@ class JobReadBase(BaseModel):
     status: JobStates
 
 
-class TrainJobAttributes(BaseModel):
-    pass
+class TrainJobAttributesBase(BaseModel):
+    decode_version: str = list(settings.version_config.keys())[-1]
+
+    class Config:
+        use_enum_values = True
+        extra = "allow"
+
+        @classmethod
+        def schema_extra(cls, schema, model):
+            choices = list(settings.version_config.keys())
+            # TODO: Invalid values cause 500, not 400, fix that
+            schema['properties']['decode_version']['enum'] = choices
 
 
 class TrainJobBase(JobBase):
-    attributes: TrainJobAttributes = {}
+    attributes: TrainJobAttributesBase
 
 
 class TrainJobCreate(TrainJobBase):
@@ -59,7 +70,7 @@ class InferenceJob(InferenceJobBase, JobReadBase):
 
 
 class Job(JobBase, JobReadBase):
-    attributes: TrainJobAttributes | InferenceJobAttributes
+    attributes: TrainJobAttributesBase | InferenceJobAttributes
 
     class Config:
         orm_mode = True

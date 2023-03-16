@@ -21,10 +21,7 @@ def enqueue_job(job: models.Job, queues: dict[JobQueue]):
         "date_created": job.date_created,
         "decode_version": job.model.decode_version,
         "model_path": fs.full_path_uri(job.model.model_path),
-        "attributes": job.attributes if job.job_type == models.JobTypes.inference.value else {
-            "config_file": user_fs.full_path_uri(job.model.config_file),
-            "calibration_file": user_fs.full_path_uri(job.model.calibration_file)
-        },
+        "attributes": {user_fs.full_path_uri(file) for name, file in job.attributes.items() if name != "decode_version"}
     }
     queues[env].enqueue(queue_item)
 
@@ -43,11 +40,21 @@ def create_train_job(db: Session, model: models.Model, queues: dict[JobQueue], t
     if model.status == models.ModelStates.training.value:
         raise HTTPException(status_code=400, detail=f"Model {train_job.model_id} is already training")
 
+    train_attributes = train_job.attributes.dict()
+    model.decode_version = train_attributes["decode_version"]
+    del train_attributes["decode_version"]
+
+    filesystem = get_user_filesystem(model.user_id)
+    for name, train_file in train_attributes.items():
+        if not filesystem.exists(train_file):
+            raise HTTPException(status_code=400, detail=f"File {train_file} does not exist")
+
     db_train_job = models.Job(job_type=models.JobTypes.train.value, **train_job.dict())
     db.add(db_train_job)
 
     model.last_used = datetime.now()
     model.status = models.ModelStates.training.value
+    model.train_attributes = train_attributes
     db.add(model)
     db.flush()
 
