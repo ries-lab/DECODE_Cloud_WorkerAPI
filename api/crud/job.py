@@ -36,6 +36,12 @@ def get_job(db: Session, job_id: int):
     return db.query(models.Job).options(joinedload(models.Job.model)).get(job_id)
 
 
+def _validate_files(filesystem, paths: list[str]):
+    for _file in paths:
+        if not filesystem.exists(_file):
+            raise HTTPException(status_code=400, detail=f"File {_file} does not exist")
+
+
 def create_train_job(db: Session, model: models.Model, enqueueing_func: callable, train_job: schemas.TrainJobCreate):
     if model.status == models.ModelStates.trained.value:
         raise HTTPException(status_code=400, detail=f"Model {train_job.model_id} is already trained")
@@ -47,9 +53,8 @@ def create_train_job(db: Session, model: models.Model, enqueueing_func: callable
     del train_attributes["decode_version"]
 
     filesystem = get_user_filesystem(model.user_id)
-    for name, train_file in train_attributes.items():
-        if not filesystem.exists(train_file):
-            raise HTTPException(status_code=400, detail=f"File {train_file} does not exist")
+    paths = train_attributes.values()
+    _validate_files(filesystem, paths)
 
     db_train_job = models.Job(job_type=models.JobTypes.train.value, **train_job.dict())
     db.add(db_train_job)
@@ -72,9 +77,8 @@ def create_inference_job(db: Session, model: models.Model, enqueueing_func: call
         raise HTTPException(status_code=400, detail=f"Model {inference_job.model_id} has not been trained")
 
     filesystem = get_user_filesystem(model.user_id)
-    for name, fit_file in inference_job.attributes.dict().items():
-        if not filesystem.exists(fit_file):
-            raise HTTPException(status_code=400, detail=f"File {fit_file} does not exist")
+    paths = inference_job.attributes.dict().values()
+    _validate_files(filesystem, paths)
 
     db_inference_job = models.Job(job_type=models.JobTypes.inference.value, **inference_job.dict())
     db.add(db_inference_job)

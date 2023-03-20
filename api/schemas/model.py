@@ -7,6 +7,7 @@ from api.models import ModelStates
 
 class ModelBase(BaseModel):
     name: str
+    decode_version: str | None = None
 
 
 class ModelCreate(ModelBase):
@@ -19,7 +20,6 @@ class Model(ModelBase):
     date_created: datetime.datetime
     last_used: datetime.datetime | None
     date_trained: datetime.datetime | None
-    decode_version: str | None
     train_attributes: dict | None
 
     class Config:
