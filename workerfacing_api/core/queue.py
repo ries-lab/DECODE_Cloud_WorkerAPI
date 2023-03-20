@@ -217,7 +217,7 @@ class RDSJobQueue(JobQueue):
 
     def __init__(self, db_url: str):
         self.db_url = db_url
-        self.engine = create_engine(self.db_url, connect_args={"check_same_thread": False})
+        self.engine = create_engine(self.db_url, connect_args={"check_same_thread": False} if self.db_url.startswith("sqlite") else {})
         self.table_name = QueuedJob.__tablename__
 
     def create(self, err_on_exists: bool = True):  #TODO

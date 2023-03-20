@@ -1,10 +1,10 @@
 api:
   versions:
-    v0.10.0:
+    v0.10.1:
       image_url: https://hub.docker/decode/v0.10.0
       aws_batch:
-        job_definition: decode-v0.10.0
-        revision: 6
+        job_definition: decode_train_0_10_1
+        revision: 2
       entrypoints:
         train:
           config_path:
