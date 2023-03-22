@@ -1,11 +1,11 @@
 import dotenv
 dotenv.load_dotenv()
 from fastapi import FastAPI, Depends
-from fastapi_key_auth import AuthorizerDependency
+from workerfacing_api.auth import APIKeyDependency
 from workerfacing_api.endpoints import jobs
 
 
-authorizer = AuthorizerDependency(key_pattern="WORKERFACING_API_KEY")
+authorizer = APIKeyDependency(key="WORKERFACING_API_KEY")
 
 workerfacing_app = FastAPI()
 
