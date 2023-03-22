@@ -3,6 +3,7 @@ import yaml
 
 database_url = os.environ.get("DATABASE_URL", "sqlite:///./sql_app.db")
 workerfacing_api_url = os.environ.get("WORKERFACING_API_URL", "http://127.0.0.1:81")
+workerfacing_api_key = os.environ.get("WORKERFACING_API_KEY", "")
 
 cognito_client_id = os.environ.get("COGNITO_CLIENT_ID")
 cognito_user_pool_id = os.environ.get("COGNITO_USER_POOL_ID")

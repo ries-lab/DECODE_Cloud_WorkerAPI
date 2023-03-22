@@ -7,7 +7,7 @@ from workerfacing_api.endpoints import jobs
 
 workerfacing_app = FastAPI()
 
-#workerfacing_app.add_middleware(AuthorizerMiddleware, api_key_name="X-API-KEY")
+workerfacing_app.add_middleware(AuthorizerMiddleware, key_pattern="WORKERFACING_API_KEY")
 
 workerfacing_app.include_router(jobs.router)
 
