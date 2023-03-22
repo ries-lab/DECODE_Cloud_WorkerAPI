@@ -1,15 +1,15 @@
 import dotenv
 dotenv.load_dotenv()
-from fastapi import FastAPI
-from fastapi_key_auth import AuthorizerMiddleware
+from fastapi import FastAPI, Depends
+from fastapi_key_auth import AuthorizerDependency
 from workerfacing_api.endpoints import jobs
 
 
+authorizer = AuthorizerDependency(key_pattern="WORKERFACING_API_KEY")
+
 workerfacing_app = FastAPI()
 
-workerfacing_app.add_middleware(AuthorizerMiddleware, key_pattern="WORKERFACING_API_KEY")
-
-workerfacing_app.include_router(jobs.router)
+workerfacing_app.include_router(jobs.router, dependencies=[Depends(authorizer)])
 
 
 @workerfacing_app.get("/")

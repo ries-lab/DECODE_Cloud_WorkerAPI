@@ -128,7 +128,6 @@ class TestPredict:
         resp = client.post("/predict", json={
             "model_id": model_trained,
             "attributes": {"config_path": "", "data_path": "", "meta_path": ""}})
-        print("response", resp.text)
         # test enqueued
         assert queue.peek(env=None)[0]["model_id"] == model_trained
 
