@@ -256,8 +256,8 @@ class RDSJobQueue(JobQueue):
             query = session.query(QueuedJob)
             filter_sort_query = lambda query: query.filter(
                 QueuedJob.pulled == False,
-                QueuedJob.creation_timestamp < datetime.datetime.utcnow() - datetime.timedelta(seconds=older_than),
-                (QueuedJob.env == env) | (QueuedJob.env == None),
+                (((QueuedJob.creation_timestamp < datetime.datetime.utcnow() - datetime.timedelta(seconds=older_than)) & (QueuedJob.env == None))
+                 | (QueuedJob.env == env)),  # right environment pulls its jobs immediately
                 (QueuedJob.cpu_cores <= cpu_cores) | (QueuedJob.cpu_cores == None),
                 (QueuedJob.memory <= memory) | (QueuedJob.memory == None),
                 (QueuedJob.gpu_model == gpu_model) | (QueuedJob.gpu_model == None),
