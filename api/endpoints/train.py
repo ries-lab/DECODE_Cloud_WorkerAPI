@@ -23,7 +23,7 @@ def train_model(
     enqueueing_func: str = Depends(get_enqueueing_function),
 ):
     attr_type_map = {item: (str, ...) for item in
-                     settings.version_config[train_job.attributes.decode_version]['entrypoints']['train']}
+                     settings.version_config[train_job.attributes.decode_version]['entrypoints']['train']['params']}
     TrainJobAttributes = pydantic.create_model('TrainJobAttributes', **attr_type_map)
     try:
         TrainJobAttributes.parse_obj(train_job.attributes.dict())

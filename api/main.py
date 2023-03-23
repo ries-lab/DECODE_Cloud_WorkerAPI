@@ -7,6 +7,7 @@ from .database import engine, Base
 from api.endpoints import models, train, predict, files, token, user, jobs
 from api.exceptions import register_exception_handlers
 
+
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI()

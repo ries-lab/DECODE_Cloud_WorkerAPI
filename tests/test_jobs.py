@@ -82,7 +82,7 @@ class TestTrain:
         resp = client.post("/train", json={
             "model_id": model_untrained,
             "environment": "local",
-            "attributes": {"config_path": "", "model_path": "", "data_path": "", "data_2_path": "", "type": "train"}})
+            "attributes": {"model_path": "", "calib_path": "", "param_path": "", "type": "train"}})
         # test enqueued
         assert queue.peek(env="local")[0]["model_id"] == model_untrained
         # test not enqueued in other queue
@@ -94,7 +94,7 @@ class TestTrain:
     def test_train_model_trained(self, queue, model_trained):
         resp = client.post("/train", json={
             "model_id": model_trained,
-            "attributes": {"config_path": "", "model_path": "", "data_path": "", "data_2_path": "", "type": "train"}})
+            "attributes": {"model_path": "", "calib_path": "", "param_path": "", "type": "train"}})
         # test not enqueued
         peek = queue.peek(env=None)[0]
         assert not peek or peek["model_id"] != model_trained
@@ -104,7 +104,7 @@ class TestTrain:
     def test_train_model_training(self, queue, model_training):
         resp = client.post("/train", json={
             "model_id": model_training,
-            "attributes": {"config_path": "", "model_path": "", "data_path": "", "data_2_path": "", "type": "train"}})
+            "attributes": {"model_path": "", "calib_path": "", "param_path": "", "type": "train"}})
         # test not enqueued
         peek = queue.peek(env=None)[0]
         assert not peek or peek["model_id"] != model_trained
@@ -114,7 +114,7 @@ class TestTrain:
     def test_train_model_unexistent(self, queue, model_unexistent):
         resp = client.post("/train", json={
             "model_id": model_unexistent,
-            "attributes": {"config_path": "", "model_path": "", "data_path": "", "data_2_path": "", "type": "train"}})
+            "attributes": {"model_path": "", "calib_path": "", "param_path": "", "type": "train"}})
         # test not enqueued
         peek = queue.peek(env=None)[0]
         assert not peek or peek["model_id"] != model_trained
@@ -127,14 +127,14 @@ class TestPredict:
     def test_predict(self, queue, model_trained):
         resp = client.post("/predict", json={
             "model_id": model_trained,
-            "attributes": {"config_path": "", "data_path": "", "meta_path": ""}})
+            "attributes": {"frame_path": "", "frame_meta_path": "", "emitter_path": ""}})
         # test enqueued
         assert queue.peek(env=None)[0]["model_id"] == model_trained
 
     def test_predict_model_untrained(self, queue, model_untrained):
         resp = client.post("/predict", json={
                 "model_id": model_untrained,
-                "attributes": {"config_path": "", "data_path": "", "meta_path": ""}})
+                "attributes": {"frame_path": "", "frame_meta_path": "", "emitter_path": ""}})
         # test not enqueued
         peek = queue.peek(env=None)[0]
         assert not peek or peek["model_id"] != model_trained
@@ -144,7 +144,7 @@ class TestPredict:
     def test_predict_model_training(self, queue, model_training):
         resp = client.post("/predict", json={
                 "model_id": model_training,
-                "attributes": {"config_path": "", "data_path": "", "meta_path": ""}})
+                "attributes": {"frame_path": "", "frame_meta_path": "", "emitter_path": ""}})
         # test not enqueued
         peek = queue.peek(env=None)[0]
         assert not peek or peek["model_id"] != model_trained
@@ -154,7 +154,7 @@ class TestPredict:
     def test_predict_model_unexistent(self, queue, model_unexistent):
         resp = client.post("/predict", json={
                 "model_id": model_unexistent,
-                "attributes": {"config_path": "", "data_path": "", "meta_path": ""}})
+                "attributes": {"frame_path": "", "frame_meta_path": "", "emitter_path": ""}})
         # test not enqueued
         peek = queue.peek(env=None)[0]
         assert not peek or peek["model_id"] != model_trained
