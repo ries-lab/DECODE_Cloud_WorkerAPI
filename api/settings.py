@@ -31,7 +31,7 @@ s3_bucket = os.environ.get("S3_BUCKET")
 user_data_root_path = os.environ.get("USER_DATA_ROOT_PATH")
 models_root_path = os.environ.get("MODELS_ROOT_PATH")
 
-version_config_file = os.environ.get("VERSION_CONFIG_FILE", "version_config.yaml")
+version_config_file = os.environ.get("VERSION_CONFIG_FILE", os.path.join(os.path.dirname(__file__), "..", "version_config.yaml"))
 
 with open(version_config_file) as f:
     version_config = yaml.safe_load(f)['versions']
