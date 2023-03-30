@@ -9,8 +9,8 @@ import api.settings as settings
 class HardwareSpecs(BaseModel):
     cpu_cores: int | None = None
     memory: int | None = None
-    gpu_model: int | None = None
-    gpu_count: int | None = None
+    gpu_model: str | None = None
+    gpu_archi: str | None = None
 
 
 class JobBase(BaseModel):
