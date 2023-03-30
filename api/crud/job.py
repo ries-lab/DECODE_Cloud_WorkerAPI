@@ -1,6 +1,3 @@
-import json
-import requests
-
 from datetime import datetime
 
 from sqlalchemy.orm import Session, joinedload
@@ -9,21 +6,25 @@ from fastapi import HTTPException
 import api.models as models
 import api.schemas as schemas
 from api.core.filesystem import get_user_filesystem, get_filesystem_with_root
+import api.settings as settings
 
 
 def enqueue_job(job: models.Job, enqueueing_func: callable):
     env = job.environment if job.environment else models.EnvironmentTypes.any
     user_fs = get_user_filesystem(user_id=job.model.user_id)
     fs = get_filesystem_with_root('')
+    decode_version = job.model.decode_version
     queue_item = {
-        "job_id": job.id,
+        "id": job.id,
         "model_id": job.model_id,
         "environment": env.value,
         "job_type": job.job_type,
         "date_created": job.date_created,
-        "decode_version": job.model.decode_version,
+        "decode_version": decode_version,
         "model_path": fs.full_path_uri(job.model.model_path),
-        "attributes": {user_fs.full_path_uri(file) for name, file in job.attributes.items() if name != "decode_version"}
+        "attributes": {user_fs.full_path_uri(file) for name, file in job.attributes.items() if name != "decode_version"},
+        "aws_batch": settings.version_config[decode_version]["entrypoints"]["train"]["aws_batch"],
+        "hardware": job.hardware
     }
     enqueueing_func(queue_item)
 
@@ -47,6 +48,8 @@ def create_train_job(db: Session, model: models.Model, enqueueing_func: callable
         raise HTTPException(status_code=400, detail=f"Model {train_job.model_id} is already trained")
     if model.status == models.ModelStates.training.value:
         raise HTTPException(status_code=400, detail=f"Model {train_job.model_id} is already training")
+    if train_job.priority < 1 or train_job.priority > 5:
+        raise HTTPException(status_code=400, detail="Priority must be between 1 and 5")
 
     train_attributes = train_job.attributes.dict()
     model.decode_version = train_attributes["decode_version"]

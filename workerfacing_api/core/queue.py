@@ -233,14 +233,15 @@ class RDSJobQueue(JobQueue):
 
     def enqueue(self, env: str | None, item: dict):
         with Session(self.engine) as session:
+            hw_specs = item.get('hardware', {})
             session.add(QueuedJob(
                 job=item,
                 env=env,
                 # None values in the resource requirements will make any puller match
-                cpu_cores=item.get('cpu_cores'),  # still to add to job model
-                memory=item.get('memory'),  # still to add to job model
-                gpu_model=item.get('gpu_model'),  # still to add to job model
-                gpu_archi=item.get('gpu_archi'),  # still to add to job model
+                cpu_cores=hw_specs.get('cpu_cores'),  # still to add to job model
+                memory=hw_specs.get('memory'),  # still to add to job model
+                gpu_model=hw_specs.get('gpu_model'),  # still to add to job model
+                gpu_archi=hw_specs.get('gpu_count'),  # still to add to job model
                 group=item.get('group', None),  # still to add to job model
                 priority=item.get('priority', (1 if item['job_type'] == 'training' else 5)),  # still to add to job model
                 pulled=False,  # avoid concurrent pulls

@@ -59,5 +59,7 @@ class Job(Base):
     status = Column(String, Enum(JobStates), nullable=False, default=JobStates.pending.value)
     model_id = Column(Integer, ForeignKey("models.id"), nullable=False)
     model = relationship("Model", back_populates="jobs")
+    priority = Column(Integer, nullable=False, default=5)
     environment = Column(Enum(EnvironmentTypes))
     attributes = Column(JSON, nullable=False)
+    hardware = Column(JSON, nullable=True)

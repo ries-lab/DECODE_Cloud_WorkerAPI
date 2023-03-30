@@ -6,9 +6,18 @@ from api.models import EnvironmentTypes, JobStates
 import api.settings as settings
 
 
+class HardwareSpecs(BaseModel):
+    cpu_cores: int | None = None
+    memory: int | None = None
+    gpu_model: int | None = None
+    gpu_count: int | None = None
+
+
 class JobBase(BaseModel):
     model_id: int
     environment: EnvironmentTypes | None = None
+    priority: int = 5
+    hardware: HardwareSpecs | None = None
 
 
 class JobReadBase(BaseModel):
