@@ -22,7 +22,7 @@ def enqueue_job(job: models.Job, enqueueing_func: callable):
         "date_created": job.date_created,
         "decode_version": decode_version,
         "model_path": fs.full_path_uri(job.model.model_path),
-        "attributes": {user_fs.full_path_uri(file) for name, file in job.attributes.items() if name != "decode_version"},
+        "attributes": {name: user_fs.full_path_uri(file) for name, file in job.attributes.items() if name != "decode_version"},
         "aws_batch": settings.version_config[decode_version]["entrypoints"]["train"]["aws_batch"],
         "hardware": job.hardware
     }
