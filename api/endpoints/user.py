@@ -38,8 +38,13 @@ def register_user(user: UserCreate):
         )
         filesystem = get_user_filesystem(response["User"]["Username"])
         filesystem.init()
-    except client.exceptions.UsernameExistsException:
-        raise HTTPException(status_code=400, detail="User already exists")
+    except client.exceptions.ClientError as e:
+        if e.response['Error']['Code'] == 'UsernameExistsException':
+            raise HTTPException(status_code=409, detail="User already exists")
+        elif e.response['Error']['Code'] == 'InvalidPasswordException':
+            raise HTTPException(status_code=400, detail="Password does not meet requirements")
+        else:
+            raise HTTPException(status_code=400, detail=f"Boto3 error: {e.response['Error']['Code']}. {e.response['Error']['Message']}")
 
 
     return {"email": user.email}
