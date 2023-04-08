@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Body, Depends, HTTPException, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from workerfacing_api.core.queue import JobQueue
 from workerfacing_api.queue import get_queue
 from workerfacing_api.core.job_tracking import JobStates, update_job
@@ -15,7 +15,7 @@ def get_jobs(
     memory: int = 0,
     gpu_model: str | None = None,
     gpu_archi: str | None = None,
-    groups: list[str] | None = None,
+    groups: list[str] | None = Query(None),
     older_than: int = 0,
     queue: JobQueue = Depends(get_queue),
 ):
