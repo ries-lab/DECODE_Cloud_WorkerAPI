@@ -2,6 +2,11 @@ import json
 import os
 
 queue_db_url = os.environ.get("QUEUE_DB_URL")  # RDB queue
+
+userfacing_api_url = os.environ.get("USERFACING_API_URL")
+internal_api_key_secret = os.environ.get("INTERNAL_API_KEY_SECRET")
+
+
 if "QUEUE_DB_SECRET" in os.environ:
     queue_db_secret = os.environ["QUEUE_DB_SECRET"]
     try:

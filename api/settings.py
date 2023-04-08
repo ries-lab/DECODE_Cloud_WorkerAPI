@@ -11,9 +11,9 @@ if "DATABASE_SECRET" in os.environ:
         pass
     database_url = database_url.format(database_secret)
 workerfacing_api_url = os.environ.get("WORKERFACING_API_URL", "http://127.0.0.1:81")
-workerfacing_api_key = os.environ.get("WORKERFACING_API_KEY", "")
+internal_api_key_secret = os.environ.get("INTERNAL_API_KEY_SECRET")
 try:
-    workerfacing_api_key = json.loads(workerfacing_api_key)["password"]  # AWS Secrets Manager
+    internal_api_key_secret = json.loads(internal_api_key_secret)["password"]  # AWS Secrets Manager
 except:
     pass
 

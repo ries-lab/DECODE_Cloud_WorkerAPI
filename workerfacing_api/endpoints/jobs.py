@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Body, Depends, HTTPException, status
 from workerfacing_api.core.queue import JobQueue
 from workerfacing_api.queue import get_queue
+from workerfacing_api.core.job_tracking import JobStates, update_job
 
 
 router = APIRouter()
@@ -31,6 +32,7 @@ def get_jobs(
         )
         if job:
             jobs.append(job)
+            update_job(job_id=job["id"], job_status=JobStates.running)
         else:
             break
     return jobs
@@ -42,7 +44,13 @@ def post_job(job: dict = Body(), queue: JobQueue = Depends(get_queue)):
     return job
 
 
-@router.post("/outputs/{job_id}")
-def post_output(job_id: int):
-    #TODO: handles job postprocessing, API update
-    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED)
+@router.post("/outputs/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
+def post_job_finish(job_id: int):
+    update_job(job_id=job_id, job_status=JobStates.finished)
+    return {}
+
+
+@router.post("/errors/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
+def post_job_error(job_id: int):
+    update_job(job_id=job_id, job_status=JobStates.error)
+    return {}

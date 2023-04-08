@@ -1,4 +1,3 @@
-import os
 import typing
 from fastapi import Header, HTTPException
 
@@ -10,6 +9,6 @@ class APIKeyDependency:
         self.key = key
 
     def __call__(self, x_api_key: typing.Optional[str] = Header(...)):
-        if x_api_key != os.environ[self.key]:
+        if x_api_key != self.key:
             raise HTTPException(status_code=401, detail="unauthorized")
         return x_api_key
