@@ -3,7 +3,7 @@ import os
 
 queue_db_url = os.environ.get("QUEUE_DB_URL")  # RDB queue
 
-userfacing_api_url = os.environ.get("USERFACING_API_URL")
+get_userfacing_api_url = lambda: os.environ.get("USERFACING_API_URL")  # need to be able to change this at runtime
 internal_api_key_secret = os.environ.get("INTERNAL_API_KEY_SECRET")
 
 
