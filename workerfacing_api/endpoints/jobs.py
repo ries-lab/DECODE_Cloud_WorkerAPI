@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Body, Depends, Query, status
 from workerfacing_api.core.queue import JobQueue
 from workerfacing_api.queue import get_queue
 from workerfacing_api.core.job_tracking import JobStates, update_job
