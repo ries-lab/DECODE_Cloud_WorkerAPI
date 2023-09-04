@@ -1,0 +1,28 @@
+versions:
+  v0.10.1:
+    entrypoints:
+      train:
+        image_url: #TODO
+        aws_batch:
+          job_definition: decode_train_0_10_1
+          hardware:
+            MEMORY: 8000
+            VCPU: 4
+            GPU: 1
+          timeout: 18000
+        params:
+          param_path:
+          calib_path:
+      fit:
+        image_url: #TODO
+        aws_batch:
+          job_definition: decode_fit_0_10_1
+          hardware:
+            MEMORY: 8000
+            VCPU: 4
+            GPU: 1
+          timeout: 3000
+        params:
+          emitter_path:
+          frame_path:
+          frame_meta_path:
