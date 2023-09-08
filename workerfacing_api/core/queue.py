@@ -4,6 +4,7 @@ import datetime
 import json
 import os
 import pickle
+import time
 from abc import ABC, abstractmethod
 from dict_hash import sha256
 from fastapi import HTTPException
@@ -215,10 +216,28 @@ class RDSJobQueue(JobQueue):
     Allows other filter conditions and prioritization by not being a pure queue.
     """
 
-    def __init__(self, db_url: str):
+    def __init__(self, db_url: str, max_retries: int = 10, retry_wait: int = 60):
         self.db_url = db_url
-        self.engine = create_engine(self.db_url, connect_args={"check_same_thread": False} if self.db_url.startswith("sqlite") else {})
+        self.engine = self._get_engine(self.db_url, max_retries, retry_wait)
         self.table_name = QueuedJob.__tablename__
+    
+    def _get_engine(self, db_url, max_retries: int, retry_wait: int):
+        retries = 0
+        while retries < max_retries:
+            try:
+                engine = create_engine(
+                    db_url,
+                    connect_args={"check_same_thread": False}
+                    if db_url.startswith("sqlite")
+                    else {},
+                )
+                # Attempt to create a connection or perform any necessary operations
+                engine.connect()
+                return engine  # Connection successful
+            except Exception as e:
+                print(f"Connection attempt failed: {str(e)}")
+                retries += 1
+                time.sleep(retry_wait)
 
     def create(self, err_on_exists: bool = True):  #TODO
         if self.engine.has_table(self.table_name) and err_on_exists:
