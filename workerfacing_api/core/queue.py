@@ -6,6 +6,7 @@ import os
 import pickle
 import time
 from abc import ABC, abstractmethod
+from deprecated import deprecated
 from dict_hash import sha256
 from fastapi import HTTPException
 from typing import Tuple
@@ -71,8 +72,14 @@ class JobQueue(ABC):
                 self.pop(env=env, receipt_handle=receipt_handle)
                 return item
         return None
+    
+    @abstractmethod
+    def get_job(self, job_id: str):
+        """Get job information, not necessarily in queue.
+        """
 
 
+@deprecated(reason="Using a database as queue")
 class LocalJobQueue(JobQueue):
     """Local job queue, for testing purposes only.
     """
@@ -125,8 +132,12 @@ class LocalJobQueue(JobQueue):
             f.seek(0)
             f.truncate()
             pickle.dump(queue, f)
+    
+    def get_job(self, job_id: str):
+        raise NotImplementedError("This method is implemented only for RDS queues.")
 
 
+@deprecated(reason="Using a database as queue")
 class SQSJobQueue(JobQueue):
     """SQS job queue.
     """
@@ -210,6 +221,9 @@ class SQSJobQueue(JobQueue):
                 detail=f"Error deleting message from SQS queue: {error}.")
         return response
 
+    def get_job(self, job_id: str):
+        raise NotImplementedError("This method is implemented only for RDS queues.")
+
 
 class RDSJobQueue(JobQueue):
     """Relational Database System job queue.
@@ -287,9 +301,9 @@ class RDSJobQueue(JobQueue):
             job = filter_sort_query(query.filter(QueuedJob.group.in_(groups)))
             if job is None:
                 job = filter_sort_query(query)
-        if job:
-            job.pulled = True
-            return job.job, str(job.id)
+            if job:
+                job.pulled = True
+                return job.job, str(job.id)
         return None, None
 
     def pop(self, env: str, receipt_handle: str):
@@ -301,3 +315,7 @@ class RDSJobQueue(JobQueue):
                     detail=f"Error deleting job from RDS queue: {n_del} jobs found."
                 )
             session.commit()
+    
+    def get_job(self, job_id: str):
+        with Session(self.engine) as session:
+            return session.query(QueuedJob).filter(QueuedJob.id == job_id).first()

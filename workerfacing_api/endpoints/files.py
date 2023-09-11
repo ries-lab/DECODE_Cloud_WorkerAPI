@@ -1,6 +1,10 @@
 import boto3
-from fastapi import APIRouter, Depends, File, Request, status, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, status, UploadFile
+from pathlib import Path
+
 from workerfacing_api.core.filesystem import filesystem_dep
+from workerfacing_api.core.queue import JobQueue
+from workerfacing_api.queue import get_queue
 
 
 router = APIRouter()
@@ -15,6 +19,10 @@ async def get_file(path: str, request: Request, url: bool = False, filesystem=De
         return filesystem.get_file(path)
 
 
-@router.post("/files/{path:path}", status_code=status.HTTP_201_CREATED)
-async def post_file(path: str, file: UploadFile = File(...), filesystem=Depends(filesystem_dep)):
+@router.post("/files/{job_id}", status_code=status.HTTP_201_CREATED)
+async def post_file(job_id: int, file: UploadFile = File(...), filesystem=Depends(filesystem_dep), queue: JobQueue = Depends(get_queue)):
+    job = queue.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Model not found")
+    path = Path(job.job["model_path"]) / file.filename
     return filesystem.post_file(file, path)

@@ -21,7 +21,7 @@ class FileSystem(abc.ABC):
     def get_file_url(self, path: str, request_url: str):
         raise NotImplementedError()
 
-    def post_file(self, path: str):
+    def post_file(self, file, path: str):
         raise NotImplementedError
 
 
