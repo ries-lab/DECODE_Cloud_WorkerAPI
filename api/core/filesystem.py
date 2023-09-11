@@ -3,7 +3,7 @@ import shutil
 import enum
 import abc
 from collections import namedtuple
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 
 import humanize
 import boto3
@@ -231,4 +231,4 @@ def get_filesystem_with_root(root_path: str):
 
 def get_user_filesystem(user_id: str):
     """ Get the filesystem to use for a user. """
-    return get_filesystem_with_root(settings.user_data_root_path + user_id)
+    return get_filesystem_with_root(Path(settings.user_data_root_path) / user_id)

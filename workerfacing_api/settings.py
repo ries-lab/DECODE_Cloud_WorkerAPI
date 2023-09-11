@@ -1,6 +1,12 @@
 import json
 import os
 
+
+filesystem = os.environ.get("FILESYSTEM")  # filesystem
+s3_bucket = os.environ.get("S3_BUCKET")
+models_root_path = os.environ.get("MODELS_ROOT_PATH")
+user_data_root_path = os.environ.get("USER_DATA_ROOT_PATH")
+
 queue_db_url = os.environ.get("QUEUE_DB_URL")  # RDB queue
 
 get_userfacing_api_url = lambda: os.environ.get("USERFACING_API_URL")  # need to be able to change this at runtime

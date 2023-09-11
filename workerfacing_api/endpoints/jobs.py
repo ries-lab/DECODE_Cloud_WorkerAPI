@@ -8,7 +8,7 @@ router = APIRouter()
 
 
 @router.get("/jobs", response_model=list[dict])
-def get_jobs(
+async def get_jobs(
     limit: int = 1,
     env: str | None = None,
     cpu_cores: int = 1,
@@ -39,18 +39,18 @@ def get_jobs(
 
 
 @router.post("/jobs")
-def post_job(job: dict = Body(), queue: JobQueue = Depends(get_queue)):
+async def post_job(job: dict = Body(), queue: JobQueue = Depends(get_queue)):
     queue.enqueue(env=job.get('environment'), item=job)
     return job
 
 
 @router.post("/outputs/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
-def post_job_finish(job_id: int):
+async def post_job_finish(job_id: int):
     update_job(job_id=job_id, job_status=JobStates.finished)
     return {}
 
 
 @router.post("/errors/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
-def post_job_error(job_id: int):
+async def post_job_error(job_id: int):
     update_job(job_id=job_id, job_status=JobStates.error)
     return {}
