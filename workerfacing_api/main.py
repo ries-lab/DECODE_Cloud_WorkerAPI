@@ -21,8 +21,8 @@ queue = get_queue()
 @workerfacing_app.on_event("startup")
 @repeat_every(seconds=60, raise_exceptions=True)
 async def find_failed_jobs():
-    max_retries = int(settings.max_retries)
-    timeout_failure = int(settings.timeout_failure)
+    max_retries = settings.max_retries
+    timeout_failure = settings.timeout_failure
     n_retry, n_fail = queue.handle_timeouts(max_retries, timeout_failure)
     print(f"Silent fails check: {n_retry} re-queued, {n_fail} failed.")
 
