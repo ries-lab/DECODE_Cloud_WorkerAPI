@@ -1,6 +1,6 @@
 import boto3
+import os
 from fastapi import APIRouter, Depends, File, HTTPException, Request, status, UploadFile
-from pathlib import Path
 
 from workerfacing_api.core.filesystem import filesystem_dep
 from workerfacing_api.core.queue import JobQueue
@@ -24,5 +24,5 @@ async def post_file(job_id: int, file: UploadFile = File(...), filesystem=Depend
     job = queue.get_job(job_id)
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Model not found")
-    path = Path(job.job["model_path"]) / file.filename
+    path = os.path.join(job.job["model_path"], file.filename)  # not pathlib.Path since it does s3://x => s3:/x
     return filesystem.post_file(file, path)

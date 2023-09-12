@@ -43,7 +43,7 @@ class LocalFilesystem(FileSystem):
     def get_file_url(self, path: str, request_url: str):
         if not os.path.exists(path):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
-        return f"{request_url}?url=1"
+        return request_url.replace("url=true", "url=false")
 
     def post_file(self, file, path: str):
         if not Path(self.base_post_path) in Path(path).parents:
