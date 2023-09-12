@@ -13,6 +13,7 @@ from typing import Tuple
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
+from workerfacing_api import settings
 from workerfacing_api.core.rds_models import QueuedJob, JobStates, Base
 from workerfacing_api.core.job_tracking import update_job
 
@@ -332,18 +333,26 @@ class RDSJobQueue(JobQueue):
         worker_str = f"<w>{hostname}<\w>"
         with Session(self.engine) as session:
             query = session.query(QueuedJob)
-            filter_sort_query = lambda query: query.filter(
-                QueuedJob.status == JobStates.queued.value,
-                (((QueuedJob.creation_timestamp < datetime.datetime.utcnow() - datetime.timedelta(seconds=older_than))
-                  & (QueuedJob.env == None))
-                 | (QueuedJob.env == env)),  # right environment pulls its jobs immediately
-                (QueuedJob.cpu_cores <= cpu_cores) | (QueuedJob.cpu_cores == None),
-                (QueuedJob.memory <= memory) | (QueuedJob.memory == None),
-                (QueuedJob.gpu_model == gpu_model) | (QueuedJob.gpu_model == None),
-                (QueuedJob.gpu_archi == gpu_archi) | (QueuedJob.gpu_archi == None),
-                (QueuedJob.gpu_mem <= gpu_mem) | (QueuedJob.gpu_mem == None),
-                (QueuedJob.workers.contains(worker_str) == 0),  # worker did not already try running this job
-            ).order_by(QueuedJob.priority.desc()).order_by(QueuedJob.creation_timestamp.asc()).with_for_update().first()  # with_for_update locks concurrent pulls
+
+            def filter_sort_query(query):
+                ret = query.filter(
+                    QueuedJob.status == JobStates.queued.value,
+                    (((QueuedJob.creation_timestamp < datetime.datetime.utcnow() - datetime.timedelta(seconds=older_than))
+                    & (QueuedJob.env == None))
+                    | (QueuedJob.env == env)),  # right environment pulls its jobs immediately
+                    (QueuedJob.cpu_cores <= cpu_cores) | (QueuedJob.cpu_cores == None),
+                    (QueuedJob.memory <= memory) | (QueuedJob.memory == None),
+                    (QueuedJob.gpu_model == gpu_model) | (QueuedJob.gpu_model == None),
+                    (QueuedJob.gpu_archi == gpu_archi) | (QueuedJob.gpu_archi == None),
+                    (QueuedJob.gpu_mem <= gpu_mem) | (QueuedJob.gpu_mem == None),
+                )
+                if settings.retry_different:
+                    # only if worker did not already try running this job
+                    ret = ret.filter(QueuedJob.workers.contains(worker_str) == 0)
+                ret = ret.order_by(QueuedJob.priority.desc()).order_by(QueuedJob.creation_timestamp.asc())
+                ret = ret.with_for_update().first()  # with_for_update locks concurrent pulls
+                return ret
+
             # prioritize private jobs
             job = filter_sort_query(query.filter(QueuedJob.group.in_(groups)))
             if job is None:

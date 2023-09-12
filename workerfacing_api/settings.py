@@ -9,6 +9,7 @@ user_data_root_path = os.environ.get("USER_DATA_ROOT_PATH")
 
 max_retries = os.environ.get("MAX_RETRIES")
 timeout_failure = os.environ.get("TIMEOUT_FAILURE")
+retry_different = os.environ.get("RETRY_DIFFERENT")
 queue_db_url = os.environ.get("QUEUE_DB_URL")  # RDB queue
 
 get_userfacing_api_url = lambda: os.environ.get("USERFACING_API_URL")  # need to be able to change this at runtime
