@@ -10,6 +10,7 @@ router = APIRouter()
 
 @router.get("/jobs", response_model=list[dict])
 async def get_jobs(
+    hostname: str,
     cpu_cores: int,
     memory: int,
     env: str | None = None,
@@ -24,6 +25,7 @@ async def get_jobs(
     jobs = []
     for _ in range(limit):
         job = queue.dequeue(
+            hostname=hostname,
             cpu_cores=cpu_cores,
             memory=memory,
             env=env,
@@ -31,7 +33,7 @@ async def get_jobs(
             gpu_archi=gpu_archi,
             gpu_mem=gpu_mem or 0,
             groups=groups,
-            older_than=older_than,
+            older_than=older_than or 0,
         )
         if job:
             jobs.append(job)

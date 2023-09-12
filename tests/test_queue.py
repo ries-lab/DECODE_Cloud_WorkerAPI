@@ -118,15 +118,15 @@ class TestLocalQueue:
 
     def test_create_queue(self, queue, env_name):
         # test queue is empty
-        assert queue.peek(env=env_name)[0] is None
+        assert queue.peek(hostname="i", env=env_name)[0] is None
 
     def test_enqueue(self, populated_queue, env_name):
-        assert populated_queue.peek(env=env_name)[0] is not None
+        assert populated_queue.peek(hostname="i", env=env_name)[0] is not None
 
     def test_peek(self, populated_queue, env_name):
-        assert populated_queue.peek(env=env_name)[0]['model_id'] == 0
+        assert populated_queue.peek(hostname="i", env=env_name)[0]['model_id'] == 0
         # peeking does not remove elements
-        assert populated_queue.peek(env=env_name)[0]['model_id'] == 0
+        assert populated_queue.peek(hostname="i", env=env_name)[0]['model_id'] == 0
         
     def test_dequeue(self, populated_queue, env_name):
         assert populated_queue.dequeue(env=env_name)['model_id'] == 0
@@ -176,10 +176,10 @@ class TestRDSQueue(TestLocalQueue):
     
     # additional tests for additional functionality
     def test_filtering(self, populated_full_queue, env_name):
-        assert populated_full_queue.peek(env=env_name, cpu_cores=2)[0]["model_id"] == 1
-        assert populated_full_queue.peek(env=env_name, memory=1)[0]["model_id"] == 1
-        assert populated_full_queue.peek(env=env_name, gpu_model="gpu_model")[0]["model_id"] == 1
-        assert populated_full_queue.peek(env=env_name, gpu_archi="gpu_archi")[0]["model_id"] == 1
+        assert populated_full_queue.peek(hostname="i", env=env_name, cpu_cores=2)[0]["model_id"] == 1
+        assert populated_full_queue.peek(hostname="i", env=env_name, memory=1)[0]["model_id"] == 1
+        assert populated_full_queue.peek(hostname="i", env=env_name, gpu_model="gpu_model")[0]["model_id"] == 1
+        assert populated_full_queue.peek(hostname="i", env=env_name, gpu_archi="gpu_archi")[0]["model_id"] == 1
     
     def test_priorities(self, populated_full_queue, env_name):
         # group priority

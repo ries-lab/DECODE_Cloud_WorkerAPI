@@ -8,7 +8,7 @@ import time
 from abc import ABC, abstractmethod
 from deprecated import deprecated
 from dict_hash import sha256
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 from typing import Tuple
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -40,7 +40,7 @@ class JobQueue(ABC):
         pass
 
     @abstractmethod
-    def peek(self, env: str | None, older_than: float = 0) -> Tuple[dict, str | None] | None:
+    def peek(self, hostname: str, env: str | None, older_than: int = 0) -> Tuple[dict, str | None] | None:
         """Look at first element in the queue.
         
         Returns:
@@ -55,7 +55,7 @@ class JobQueue(ABC):
         """
         pass
 
-    def dequeue(self, env: str | None, older_than: float = 0, **kwargs) -> dict | None:
+    def dequeue(self, env: str | None, older_than: int = 0, **kwargs) -> dict | None:
         """Peek last element and remove it from the queue if it is older than `older_than'.
         """
         # get last element
@@ -126,7 +126,7 @@ class LocalJobQueue(JobQueue):
             pickle.dump(queue, f)
         super().enqueue(env, item)
     
-    def peek(self, env: str | None, older_than: float = 0) -> Tuple[dict | None, str | None]:
+    def peek(self, hostname: str, env: str | None, older_than: int = 0) -> Tuple[dict | None, str | None]:
         # older than argument not supported
         with open(self.queue_path, 'rb+') as f:
             queue = pickle.load(f)
@@ -141,7 +141,7 @@ class LocalJobQueue(JobQueue):
             if queue.get(env):
                 if sha256(queue[env][0]) != receipt_handle:
                     raise HTTPException(
-                        status_code=400,
+                        status_code=status.HTTP_400_BAD_REQUEST,
                         detail=f"Element not first in queue.")
             queue[env] = queue[env][1:]
             f.seek(0)
@@ -187,7 +187,7 @@ class SQSJobQueue(JobQueue):
             except self.sqs_client.exceptions.QueueNameExists:
                 if err_on_exists:
                     raise HTTPException(
-                        status_code=400,
+                        status_code=status.HTTP_400_BAD_REQUEST,
                         detail=f"A queue with the name {queue_name} already exists."
                     )
 
@@ -207,11 +207,11 @@ class SQSJobQueue(JobQueue):
             )
         except botocore.exceptions.ClientError as error:
             raise HTTPException(
-                status_code=500,
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error sending message to SQS queue: {error}.")
         super().enqueue(env, item)
 
-    def peek(self, env: str, older_than: float = 0) -> Tuple[dict | None, str | None]:
+    def peek(self, hostname: str, env: str, older_than: int = 0) -> Tuple[dict | None, str | None]:
         # older_than argument not supported
         try:
             response = self.sqs_client.receive_message(
@@ -221,7 +221,7 @@ class SQSJobQueue(JobQueue):
             )
         except botocore.exceptions.ClientError as error:
             raise HTTPException(
-                status_code=500,
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error receiving message from SQS queue: {error}.")
         if len(response.get('Messages', [])):
             message = response['Messages'][0]
@@ -239,7 +239,7 @@ class SQSJobQueue(JobQueue):
             )
         except botocore.exceptions.ClientError as error:
             raise HTTPException(
-                status_code=500,
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error deleting message from SQS queue: {error}.")
         return response
 
@@ -284,7 +284,7 @@ class RDSJobQueue(JobQueue):
     def create(self, err_on_exists: bool = True):  #TODO
         if self.engine.has_table(self.table_name) and err_on_exists:
             raise HTTPException(
-                status_code=400,
+                status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"A table with the name {self.table_name} already exists."
             )
         Base.metadata.create_all(self.engine)
@@ -307,12 +307,12 @@ class RDSJobQueue(JobQueue):
                 group=item.get('group', None),  # still to add to job model
                 priority=item.get('priority', (1 if item['job_type'] == 'training' else 5)),
                 status=JobStates.queued.value,
-                worker={},
             ))
             session.commit()
 
     def peek(
         self,
+        hostname: str,
         cpu_cores: int,
         memory: int,
         gpu_mem: int,
@@ -320,21 +320,29 @@ class RDSJobQueue(JobQueue):
         gpu_model: str | None = None,
         gpu_archi: str | None = None,
         groups: list[str] | None = None,
-        older_than: int | None = None
+        older_than: int = 0,
     ) -> Tuple[dict | None, str | None]:
         if groups is None:
             groups = []
+        if "<w>" in hostname or "<\w>" in hostname:
+            raise HTTPException(
+                status_code=status.HTTP_412_PRECONDITION_FAILED,
+                detail="Hostname cannot contain <w> or <\w> for technical reasons.",
+            )
+        worker_str = f"<w>{hostname}<\w>"
         with Session(self.engine) as session:
             query = session.query(QueuedJob)
             filter_sort_query = lambda query: query.filter(
                 QueuedJob.status == JobStates.queued.value,
-                (((QueuedJob.creation_timestamp < datetime.datetime.utcnow() - datetime.timedelta(seconds=older_than)) & (QueuedJob.env == None))
+                (((QueuedJob.creation_timestamp < datetime.datetime.utcnow() - datetime.timedelta(seconds=older_than))
+                  & (QueuedJob.env == None))
                  | (QueuedJob.env == env)),  # right environment pulls its jobs immediately
                 (QueuedJob.cpu_cores <= cpu_cores) | (QueuedJob.cpu_cores == None),
                 (QueuedJob.memory <= memory) | (QueuedJob.memory == None),
                 (QueuedJob.gpu_model == gpu_model) | (QueuedJob.gpu_model == None),
                 (QueuedJob.gpu_archi == gpu_archi) | (QueuedJob.gpu_archi == None),
                 (QueuedJob.gpu_mem <= gpu_mem) | (QueuedJob.gpu_mem == None),
+                (QueuedJob.workers.contains(worker_str) == 0),  # worker did not already try running this job
             ).order_by(QueuedJob.priority.desc()).order_by(QueuedJob.creation_timestamp.asc()).with_for_update().first()  # with_for_update locks concurrent pulls
             # prioritize private jobs
             job = filter_sort_query(query.filter(QueuedJob.group.in_(groups)))
@@ -342,10 +350,12 @@ class RDSJobQueue(JobQueue):
                 job = filter_sort_query(query)
             if job:
                 self.update_job_status(job.id, JobStates.pulled)
+                job.workers += worker_str
+                session.add(job)
                 job_data = job.job
                 job_data["queue_id"] = str(job.id)
+                session.commit()
                 return job_data, str(job.id)
-            session.commit()
         return None, None
 
     def pop(self, env: str, receipt_handle: str):
@@ -362,6 +372,7 @@ class RDSJobQueue(JobQueue):
         with Session(self.engine) as session:
             job = self.get_job(job_id, session)
             job.status = status.value
+            job.last_updated = datetime.datetime.utcnow()  # manual update since keepalive signal does not change anything
             session.add(job)
             session.commit()
             update_job(job.job["id"], status)

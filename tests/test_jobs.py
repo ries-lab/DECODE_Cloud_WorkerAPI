@@ -84,9 +84,9 @@ class TestTrain:
             "environment": "local",
             "attributes": {"model_path": "", "calib_path": "", "param_path": "", "type": "train"}})
         # test enqueued
-        assert queue.peek(env="local")[0]["model_id"] == model_untrained
+        assert queue.peek(hostname="i", env="local")[0]["model_id"] == model_untrained
         # test not enqueued in other queue
-        peek = queue.peek(env="cloud")[0]
+        peek = queue.peek(hostname="i", env="cloud")[0]
         assert not peek or peek["model_id"] != model_trained
         # test model status
         assert client.get(f"/models/{model_untrained}").json()["status"] == ModelStates.training.value
@@ -96,7 +96,7 @@ class TestTrain:
             "model_id": model_trained,
             "attributes": {"model_path": "", "calib_path": "", "param_path": "", "type": "train"}})
         # test not enqueued
-        peek = queue.peek(env=None)[0]
+        peek = queue.peek(hostname="i", env=None)[0]
         assert not peek or peek["model_id"] != model_trained
         # test error code
         assert resp.status_code == 400
@@ -106,7 +106,7 @@ class TestTrain:
             "model_id": model_training,
             "attributes": {"model_path": "", "calib_path": "", "param_path": "", "type": "train"}})
         # test not enqueued
-        peek = queue.peek(env=None)[0]
+        peek = queue.peek(hostname="i", env=None)[0]
         assert not peek or peek["model_id"] != model_trained
         # test error code
         assert resp.status_code == 400
@@ -116,7 +116,7 @@ class TestTrain:
             "model_id": model_unexistent,
             "attributes": {"model_path": "", "calib_path": "", "param_path": "", "type": "train"}})
         # test not enqueued
-        peek = queue.peek(env=None)[0]
+        peek = queue.peek(hostname="i", env=None)[0]
         assert not peek or peek["model_id"] != model_trained
         # test error code
         assert resp.status_code == 404
@@ -129,14 +129,14 @@ class TestPredict:
             "model_id": model_trained,
             "attributes": {"frame_path": "", "frame_meta_path": "", "emitter_path": ""}})
         # test enqueued
-        assert queue.peek(env=None)[0]["model_id"] == model_trained
+        assert queue.peek(hostname="i", env=None)[0]["model_id"] == model_trained
 
     def test_predict_model_untrained(self, queue, model_untrained):
         resp = client.post("/predict", json={
                 "model_id": model_untrained,
                 "attributes": {"frame_path": "", "frame_meta_path": "", "emitter_path": ""}})
         # test not enqueued
-        peek = queue.peek(env=None)[0]
+        peek = queue.peek(hostname="i", env=None)[0]
         assert not peek or peek["model_id"] != model_trained
         # test error code
         assert resp.status_code == 400
@@ -146,7 +146,7 @@ class TestPredict:
                 "model_id": model_training,
                 "attributes": {"frame_path": "", "frame_meta_path": "", "emitter_path": ""}})
         # test not enqueued
-        peek = queue.peek(env=None)[0]
+        peek = queue.peek(hostname="i", env=None)[0]
         assert not peek or peek["model_id"] != model_trained
         # test error code
         assert resp.status_code == 400
@@ -156,7 +156,7 @@ class TestPredict:
                 "model_id": model_unexistent,
                 "attributes": {"frame_path": "", "frame_meta_path": "", "emitter_path": ""}})
         # test not enqueued
-        peek = queue.peek(env=None)[0]
+        peek = queue.peek(hostname="i", env=None)[0]
         assert not peek or peek["model_id"] != model_trained
         # test error code
         assert resp.status_code == 404

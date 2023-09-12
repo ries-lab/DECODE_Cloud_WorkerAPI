@@ -40,3 +40,6 @@ class QueuedJob(Base):
     # prioritization attributes
     group = Column(String, default=None)  # worker pulls its own groups first
     priority = Column(Integer, default=0)  # set by user/userfacing API
+
+    # logging which workers tried running/run the job
+    workers = Column(String, default="")
