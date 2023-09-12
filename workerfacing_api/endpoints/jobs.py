@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Body, Depends, Query, status
+from workerfacing_api.core.rds_models import JobStates
 from workerfacing_api.core.queue import JobQueue
 from workerfacing_api.queue import get_queue
-from workerfacing_api.core.job_tracking import JobStates, update_job
+from workerfacing_api.core.job_tracking import update_job
 
 
 router = APIRouter()
@@ -9,25 +10,27 @@ router = APIRouter()
 
 @router.get("/jobs", response_model=list[dict])
 async def get_jobs(
-    limit: int = 1,
+    cpu_cores: int,
+    memory: int,
     env: str | None = None,
-    cpu_cores: int = 1,
-    memory: int = 0,
     gpu_model: str | None = None,
     gpu_archi: str | None = None,
+    gpu_mem: int | None = None,
     groups: list[str] | None = Query(None),
-    older_than: int = 0,
+    limit: int = 1,
+    older_than: int | None = None,
     queue: JobQueue = Depends(get_queue),
 ):
     jobs = []
     for _ in range(limit):
         job = queue.dequeue(
-            env=env,
             cpu_cores=cpu_cores,
             memory=memory,
+            env=env,
             gpu_model=gpu_model,
             gpu_archi=gpu_archi,
-            groups=groups or [],
+            gpu_mem=gpu_mem or 0,
+            groups=groups,
             older_than=older_than,
         )
         if job:
@@ -44,13 +47,11 @@ async def post_job(job: dict = Body(), queue: JobQueue = Depends(get_queue)):
     return job
 
 
-@router.post("/outputs/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def post_job_finish(job_id: int):
-    update_job(job_id=job_id, job_status=JobStates.finished)
-    return {}
+@router.get("/jobs/{job_id}/status")
+async def get_job_status(job_id: int, queue: JobQueue = Depends(get_queue)):
+    return queue.get_job(job_id).status
 
 
-@router.post("/errors/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def post_job_error(job_id: int):
-    update_job(job_id=job_id, job_status=JobStates.error)
-    return {}
+@router.put("/jobs/{job_id}/status", status_code=status.HTTP_200_OK)
+async def put_job_status(job_id: int, status: JobStates, queue: JobQueue = Depends(get_queue)):
+    return queue.update_job_status(job_id, status)

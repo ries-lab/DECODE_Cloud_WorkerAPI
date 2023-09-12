@@ -13,7 +13,7 @@ from api.models import JobStates, JobTypes, ModelStates
 router = APIRouter(dependencies=[Depends(workerfacing_api_auth_dep)])
 
 
-@router.post("/updateJob", status_code=204)
+@router.put("/_job_status", status_code=204)
 def update_job(update: JobUpdate, db: Session = Depends(database.get_db)):
     db_job = job_crud.get_job(db, update.job_id)
     if db_job is None:
@@ -21,6 +21,7 @@ def update_job(update: JobUpdate, db: Session = Depends(database.get_db)):
     db_job.status = update.status.value
     db.add(db_job)
 
+    # update model status
     if db_job.job_type == JobTypes.train.value:
         db_model = model_crud.get_model(db, db_job.model_id)
         if db_job.status == JobStates.finished.value:
@@ -28,5 +29,6 @@ def update_job(update: JobUpdate, db: Session = Depends(database.get_db)):
         elif db_job.status == JobStates.error.value:
             db_model.status = ModelStates.error.value
         db.add(db_model)
+    #TODO: user notifications
 
     db.commit()

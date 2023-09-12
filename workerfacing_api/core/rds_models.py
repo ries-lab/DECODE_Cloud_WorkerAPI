@@ -1,9 +1,18 @@
 import datetime
-from sqlalchemy import Column, Integer, String, DateTime, JSON, Boolean
+import enum
+from sqlalchemy import Column, Enum, Integer, String, DateTime, JSON, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 
 
 Base = declarative_base()
+
+
+class JobStates(enum.Enum):
+    queued = "queued"
+    pulled = "pulled"
+    running = "running"
+    finished = "finished"
+    error = "error"
 
 
 class QueuedJob(Base):
@@ -12,7 +21,11 @@ class QueuedJob(Base):
     # base queue attributes
     id = Column(Integer, primary_key=True, index=True)
     creation_timestamp = Column(DateTime, default=datetime.datetime.utcnow)  # to check job age
-    pulled = Column(Boolean, default=False)  # pulled by worker, in process of deletion (avoid concurrent access)
+    last_updated = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
+    status = Column(String, Enum(JobStates), nullable=False, default=JobStates.queued.value)
+    num_retries = Column(Integer, default=0)
+
     job = Column(JSON, nullable=False)
 
     # filters
@@ -22,6 +35,7 @@ class QueuedJob(Base):
     memory = Column(Integer, default=None)
     gpu_model = Column(String, default=None)
     gpu_archi = Column(String, default=None)
+    gpu_mem = Column(Integer, default=None)
 
     # prioritization attributes
     group = Column(String, default=None)  # worker pulls its own groups first

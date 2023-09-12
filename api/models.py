@@ -20,7 +20,8 @@ class JobTypes(enum.Enum):
 
 
 class JobStates(enum.Enum):
-    pending = "pending"
+    queued = "queued"
+    pulled = "pulled"
     running = "running"
     finished = "finished"
     error = "error"
@@ -56,7 +57,7 @@ class Job(Base):
     date_created = Column(DateTime, default=datetime.datetime.utcnow)
     date_started = Column(DateTime)
     date_finished = Column(DateTime)
-    status = Column(String, Enum(JobStates), nullable=False, default=JobStates.pending.value)
+    status = Column(String, Enum(JobStates), nullable=False, default=JobStates.queued.value)
     model_id = Column(Integer, ForeignKey("models.id"), nullable=False)
     model = relationship("Model", back_populates="jobs")
     priority = Column(Integer, nullable=False, default=5)

@@ -47,6 +47,7 @@ def full_jobs():
         "memory": 2,
         "gpu_model": "gpu_model",
         "gpu_archi": "gpu_archi",
+        "gpu_mem": 0,
         "group": None,
         "priority": 5,
     }
@@ -59,6 +60,7 @@ def full_jobs():
         "memory": 0,
         "gpu_model": None,
         "gpu_archi": None,
+        "gpu_mem": None,
         "group": None,
         "priority": 10,
     }

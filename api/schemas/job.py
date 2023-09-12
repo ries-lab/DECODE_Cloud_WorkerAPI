@@ -11,6 +11,7 @@ class HardwareSpecs(BaseModel):
     memory: int | None = None
     gpu_model: str | None = None
     gpu_archi: str | None = None
+    gpu_mem: int | None = None
 
 
 class JobBase(BaseModel):

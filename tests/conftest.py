@@ -31,9 +31,11 @@ def monkeypatch_session():
 
 @pytest.fixture(autouse=True, scope="session")
 def override_auth(monkeypatch_session):
-    monkeypatch_session.setitem(app.dependency_overrides, current_user_dep,
-                                lambda: CognitoClaims(**{"cognito:username": test_username, "email": "test@example.com"})
-                                )
+    monkeypatch_session.setitem(
+        app.dependency_overrides,
+        current_user_dep,
+        lambda: CognitoClaims(**{"cognito:username": test_username, "email": "test@example.com"}),
+    )
 
 
 @pytest.fixture

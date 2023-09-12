@@ -1,16 +1,9 @@
 import requests
-import enum
-
 from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
 
 import workerfacing_api.settings as settings
-
-
-class JobStates(enum.Enum):
-    running = "running"
-    finished = "finished"
-    error = "error"
+from workerfacing_api.core.rds_models import JobStates
 
 
 def update_job(job_id: int, job_status: JobStates) -> None:
@@ -18,8 +11,11 @@ def update_job(job_id: int, job_status: JobStates) -> None:
         "job_id": job_id,
         "status": job_status.value
     }
-    resp = requests.post(url=f"{settings.get_userfacing_api_url()}/updateJob", json=jsonable_encoder(body),
-                         headers={"x-api-key": settings.internal_api_key_secret})
+    resp = requests.put(
+        url=f"{settings.get_userfacing_api_url()}/_job_status",
+        json=jsonable_encoder(body),
+        headers={"x-api-key": settings.internal_api_key_secret},
+    )
     if not str(resp.status_code).startswith("2"):
         raise HTTPException(
             status_code=resp.status_code,

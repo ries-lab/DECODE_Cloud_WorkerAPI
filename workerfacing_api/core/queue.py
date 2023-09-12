@@ -13,7 +13,8 @@ from typing import Tuple
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from workerfacing_api.core.rds_models import QueuedJob, Base
+from workerfacing_api.core.rds_models import QueuedJob, JobStates, Base
+from workerfacing_api.core.job_tracking import update_job
 
 
 class JobQueue(ABC):
@@ -77,6 +78,19 @@ class JobQueue(ABC):
     def get_job(self, job_id: str):
         """Get job information, not necessarily in queue.
         """
+        pass
+    
+    @abstractmethod
+    def update_job_status(self, job_id: int, status: JobStates):
+        """Update the job status.
+        """
+        pass
+    
+    @abstractmethod
+    def handle_timeouts(self, max_retries: int, timeout_failure: int):
+        """Handle a timeout (keepalive signal not received).
+        """
+        pass
 
 
 @deprecated(reason="Using a database as queue")
@@ -110,6 +124,7 @@ class LocalJobQueue(JobQueue):
             f.seek(0)
             f.truncate()
             pickle.dump(queue, f)
+        super().enqueue(env, item)
     
     def peek(self, env: str | None, older_than: float = 0) -> Tuple[dict | None, str | None]:
         # older than argument not supported
@@ -134,6 +149,12 @@ class LocalJobQueue(JobQueue):
             pickle.dump(queue, f)
     
     def get_job(self, job_id: str):
+        raise NotImplementedError("This method is implemented only for RDS queues.")
+
+    def update_job_status(self, job_id: int, status: JobStates):
+        raise NotImplementedError("This method is implemented only for RDS queues.")
+    
+    def handle_timeouts(self, max_retries: int, timeout_failure: int):
         raise NotImplementedError("This method is implemented only for RDS queues.")
 
 
@@ -188,6 +209,7 @@ class SQSJobQueue(JobQueue):
             raise HTTPException(
                 status_code=500,
                 detail=f"Error sending message to SQS queue: {error}.")
+        super().enqueue(env, item)
 
     def peek(self, env: str, older_than: float = 0) -> Tuple[dict | None, str | None]:
         # older_than argument not supported
@@ -222,6 +244,12 @@ class SQSJobQueue(JobQueue):
         return response
 
     def get_job(self, job_id: str):
+        raise NotImplementedError("This method is implemented only for RDS queues.")
+
+    def update_job_status(self, job_id: int, status: JobStates):
+        raise NotImplementedError("This method is implemented only for RDS queues.")
+    
+    def handle_timeouts(self, max_retries: int, timeout_failure: int):
         raise NotImplementedError("This method is implemented only for RDS queues.")
 
 
@@ -275,47 +303,87 @@ class RDSJobQueue(JobQueue):
                 memory=hw_specs.get('memory'),
                 gpu_model=hw_specs.get('gpu_model'),
                 gpu_archi=hw_specs.get('gpu_archi'),
+                gpu_mem=hw_specs.get('gpu_mem'),
                 group=item.get('group', None),  # still to add to job model
                 priority=item.get('priority', (1 if item['job_type'] == 'training' else 5)),
-                pulled=False,  # avoid concurrent pulls
+                status=JobStates.queued.value,
+                worker={},
             ))
             session.commit()
 
     def peek(
-        self, env: str | None, cpu_cores: int = 1, memory: int = 0, gpu_model: str | None = None, gpu_archi: str | None = None, groups: list[str] = None, older_than: float = 0
+        self,
+        cpu_cores: int,
+        memory: int,
+        gpu_mem: int,
+        env: str | None = None,
+        gpu_model: str | None = None,
+        gpu_archi: str | None = None,
+        groups: list[str] | None = None,
+        older_than: int | None = None
     ) -> Tuple[dict | None, str | None]:
         if groups is None:
             groups = []
         with Session(self.engine) as session:
             query = session.query(QueuedJob)
             filter_sort_query = lambda query: query.filter(
-                QueuedJob.pulled == False,
+                QueuedJob.status == JobStates.queued.value,
                 (((QueuedJob.creation_timestamp < datetime.datetime.utcnow() - datetime.timedelta(seconds=older_than)) & (QueuedJob.env == None))
                  | (QueuedJob.env == env)),  # right environment pulls its jobs immediately
                 (QueuedJob.cpu_cores <= cpu_cores) | (QueuedJob.cpu_cores == None),
                 (QueuedJob.memory <= memory) | (QueuedJob.memory == None),
                 (QueuedJob.gpu_model == gpu_model) | (QueuedJob.gpu_model == None),
                 (QueuedJob.gpu_archi == gpu_archi) | (QueuedJob.gpu_archi == None),
+                (QueuedJob.gpu_mem <= gpu_mem) | (QueuedJob.gpu_mem == None),
             ).order_by(QueuedJob.priority.desc()).order_by(QueuedJob.creation_timestamp.asc()).with_for_update().first()  # with_for_update locks concurrent pulls
             # prioritize private jobs
             job = filter_sort_query(query.filter(QueuedJob.group.in_(groups)))
             if job is None:
                 job = filter_sort_query(query)
             if job:
-                job.pulled = True
-                return job.job, str(job.id)
+                self.update_job_status(job.id, JobStates.pulled)
+                job_data = job.job
+                job_data["queue_id"] = str(job.id)
+                return job_data, str(job.id)
+            session.commit()
         return None, None
 
     def pop(self, env: str, receipt_handle: str):
-        with Session(self.engine) as session:
-            n_del = session.query(QueuedJob).filter_by(id=receipt_handle).delete()
-            if n_del != 1:
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Error deleting job from RDS queue: {n_del} jobs found."
-                )
-            session.commit()
+        # not doing anything, since we keep the job in the database for tracking
+        pass
     
-    def get_job(self, job_id: str):
+    def get_job(self, job_id: int, session = None):
+        if not session:
+            with Session(self.engine) as session:
+                return self.get_job(job_id, session)
+        return session.query(QueuedJob).filter(QueuedJob.id == job_id).first()
+    
+    def update_job_status(self, job_id: int, status: JobStates):
         with Session(self.engine) as session:
-            return session.query(QueuedJob).filter(QueuedJob.id == job_id).first()
+            job = self.get_job(job_id, session)
+            job.status = status.value
+            session.add(job)
+            session.commit()
+            update_job(job.job["id"], status)
+    
+    def handle_timeouts(self, max_retries: int, timeout_failure: int):
+        n_retry, n_failed = 0, 0
+        time_now = datetime.datetime.utcnow()
+        with Session(self.engine) as session:
+            jobs_timeout = session.query(QueuedJob).filter(
+                (QueuedJob.status == JobStates.running.value) | (QueuedJob.status == JobStates.pulled.value),
+                (QueuedJob.last_updated < time_now - datetime.timedelta(seconds=timeout_failure)),
+            )
+            jobs_retry = jobs_timeout.filter(QueuedJob.num_retries < max_retries)
+            for job in jobs_retry:
+                #TODO: increase priority?
+                job.num_retries += 1
+                session.add(job)
+                self.update_job_status(job.id, JobStates.queued)
+                n_retry += 1
+            jobs_failed = jobs_timeout.filter(QueuedJob.num_retries >= max_retries)
+            for job in jobs_failed:
+                self.update_job_status(job.id, JobStates.error)
+                n_failed += 1
+            session.commit()
+            return n_retry, n_failed

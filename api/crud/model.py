@@ -23,6 +23,7 @@ def create_model(db: Session, user_id: str, model: schemas.ModelCreate):
     db.flush()
     model_path = PurePosixPath(settings.models_root_path, user_id, f"{model.name}_{db_model.id}")
     db_model.model_path = model_path.as_posix()
+    db.add(db_model)
     db.commit()
     db.refresh(db_model)
     return db_model

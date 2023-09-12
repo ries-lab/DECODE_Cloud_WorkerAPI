@@ -9,6 +9,7 @@ from api.crud.model import get_model
 from api.crud.job import create_train_job
 from api.dependencies import current_user_global_dep
 from api.queue import get_enqueueing_function
+from api.models import ModelStates
 
 import api.settings as settings
 
@@ -34,4 +35,8 @@ def train_model(
     if not model or model.user_id != request.state.current_user.username:
         raise HTTPException(status_code=404, detail=f"Model {train_job.model_id} not found")
 
-    return create_train_job(db, model, enqueueing_func, train_job)
+    train_job = create_train_job(db, model, enqueueing_func, train_job)
+    model.status = ModelStates.training.value
+    db.add(model)
+    db.commit()
+    return train_job

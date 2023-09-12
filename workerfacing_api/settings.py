@@ -7,6 +7,8 @@ s3_bucket = os.environ.get("S3_BUCKET")
 models_root_path = os.environ.get("MODELS_ROOT_PATH")
 user_data_root_path = os.environ.get("USER_DATA_ROOT_PATH")
 
+max_retries = os.environ.get("MAX_RETRIES")
+timeout_failure = os.environ.get("TIMEOUT_FAILURE")
 queue_db_url = os.environ.get("QUEUE_DB_URL")  # RDB queue
 
 get_userfacing_api_url = lambda: os.environ.get("USERFACING_API_URL")  # need to be able to change this at runtime
@@ -20,6 +22,3 @@ if "QUEUE_DB_SECRET" in os.environ:
     except:
         pass
     queue_db_url = queue_db_url.format(json.loads(os.environ["QUEUE_DB_SECRET"])["password"])
-# local_queue = os.environ.get("LOCAL_QUEUE")  # SQS queue
-# cloud_queue = os.environ.get("CLOUD_QUEUE")  # SQS queue
-# any_queue = os.environ.get("ANY_QUEUE")  # SQS queue
