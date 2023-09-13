@@ -1,13 +1,15 @@
 import datetime
-
 from pydantic import BaseModel
 
-from api.models import ModelStates
+from api.models import ModelStates, Versions
 
 
 class ModelBase(BaseModel):
     name: str
-    decode_version: str | None = None
+    decode_version: Versions = [e.value for e in Versions][-1]
+
+    class Config:
+        orm_mode = True
 
 
 class ModelCreate(ModelBase):

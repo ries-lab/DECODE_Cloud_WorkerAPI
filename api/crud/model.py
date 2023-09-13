@@ -18,7 +18,7 @@ def get_model(db: Session, model_id: int):
 
 
 def create_model(db: Session, user_id: str, model: schemas.ModelCreate):
-    db_model = models.Model(**model.dict(), user_id=user_id)
+    db_model = models.Model(name=model.name, decode_version=model.decode_version.value, user_id=user_id)
     db.add(db_model)
     db.flush()
     model_path = PurePosixPath(settings.models_root_path, user_id, f"{model.name}_{db_model.id}")

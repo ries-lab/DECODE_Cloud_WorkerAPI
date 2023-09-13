@@ -5,6 +5,7 @@ from sqlalchemy import Column, ForeignKey, Integer, String, Enum, DateTime, JSON
 from sqlalchemy.orm import relationship
 
 from api.database import Base
+from api import settings
 
 
 class ModelStates(enum.Enum):
@@ -31,6 +32,9 @@ class EnvironmentTypes(enum.Enum):
     cloud = "cloud"
     local = "local"
     any = None
+
+
+Versions = enum.Enum('Versions', {k: k for k in settings.version_config.keys()})
 
 
 class Model(Base):

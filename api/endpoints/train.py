@@ -26,9 +26,9 @@ def train_model(
     if not model or model.user_id != request.state.current_user.username:
         raise HTTPException(status_code=404, detail=f"Model {train_job.model_id} not found")
 
-    params = version_config[train_job.attributes.decode_version]['entrypoints']['train']['params']
-    attr_type_map = {item: (str, ...) for item in params['required']}
-    attr_type_map.update({item: (str, None) for item in params['optional']})
+    params = version_config[model.decode_version]['entrypoints']['train']['params']
+    attr_type_map = {item: (str, ...) for item in params.get('required') or []}
+    attr_type_map.update({item: (str, None) for item in params.get('optional') or []})
     TrainJobAttributes = pydantic.create_model('TrainJobAttributes', **attr_type_map)
     try:
         TrainJobAttributes.parse_obj(train_job.attributes.dict())

@@ -22,7 +22,7 @@ def enqueue_job(job: models.Job, enqueueing_func: callable):
         "date_created": job.date_created,
         "decode_version": decode_version,
         "model_path": fs.full_path_uri(job.model.model_path),
-        "attributes": {name: user_fs.full_path_uri(file) for name, file in job.attributes.items() if name != "decode_version"},
+        "attributes": {name: user_fs.full_path_uri(file) for name, file in job.attributes.items()},
         "aws_batch": settings.version_config[decode_version]["entrypoints"]["train"]["aws_batch"],
         "hardware": job.hardware
     }
@@ -52,8 +52,6 @@ def create_train_job(db: Session, model: models.Model, enqueueing_func: callable
         raise HTTPException(status_code=400, detail="Priority must be between 1 and 5")
 
     train_attributes = train_job.attributes.dict()
-    model.decode_version = train_attributes["decode_version"]
-    del train_attributes["decode_version"]
 
     filesystem = get_user_filesystem(model.user_id)
     paths = train_attributes.values()
