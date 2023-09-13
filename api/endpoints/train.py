@@ -10,8 +10,7 @@ from api.crud.job import create_train_job
 from api.dependencies import current_user_global_dep
 from api.queue import get_enqueueing_function
 from api.models import ModelStates
-
-import api.settings as settings
+from api.settings import version_config
 
 router = APIRouter(dependencies=[Depends(current_user_global_dep)])
 
@@ -23,17 +22,18 @@ def train_model(
     db: Any = Depends(get_db),
     enqueueing_func: str = Depends(get_enqueueing_function),
 ):
-    attr_type_map = {item: (str, ...) for item in
-                     settings.version_config[train_job.attributes.decode_version]['entrypoints']['train']['params']}
+    model = get_model(db, train_job.model_id)
+    if not model or model.user_id != request.state.current_user.username:
+        raise HTTPException(status_code=404, detail=f"Model {train_job.model_id} not found")
+
+    params = version_config[train_job.attributes.decode_version]['entrypoints']['train']['params']
+    attr_type_map = {item: (str, ...) for item in params['required']}
+    attr_type_map.update({item: (str, None) for item in params['optional']})
     TrainJobAttributes = pydantic.create_model('TrainJobAttributes', **attr_type_map)
     try:
         TrainJobAttributes.parse_obj(train_job.attributes.dict())
     except pydantic.ValidationError as e:
         raise HTTPException(status_code=400, detail=e.errors())
-
-    model = get_model(db, train_job.model_id)
-    if not model or model.user_id != request.state.current_user.username:
-        raise HTTPException(status_code=404, detail=f"Model {train_job.model_id} not found")
 
     train_job = create_train_job(db, model, enqueueing_func, train_job)
     model.status = ModelStates.training.value

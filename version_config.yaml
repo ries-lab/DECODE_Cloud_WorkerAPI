@@ -11,8 +11,11 @@ versions:
             GPU: 1
           timeout: 18000
         params:
-          param_path:
-          calib_path:
+          required:
+            # id: cmd_arg
+            param_path: param_path
+            calib_path: calib_path
+          optional:
       fit:
         image_url: #TODO
         aws_batch:
@@ -23,6 +26,8 @@ versions:
             GPU: 1
           timeout: 3000
         params:
-          emitter_path:
-          frame_path:
-          frame_meta_path:
+          required:
+            emitter_path:
+            frame_path:
+            frame_meta_path:
+          optional:
