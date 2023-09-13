@@ -17,22 +17,38 @@ def get_files_from_path(file_path: str, filesystem=Depends(filesystem_dep)):
     return filesystem.list_directory(file_path)
 
 
-@router.post("/files/{file_path:path}", response_model=schemas.File, status_code=status.HTTP_201_CREATED)
-def upload_file(file_path: str, file: UploadFile, filesystem=Depends(filesystem_dep)):
+def upload_file(file_path: str, file: UploadFile, filesystem):
     filesystem.create_file(file_path, file.file)
     return filesystem.get_file_info(file_path)
 
+@router.post("/files/config/{config_id}/{file_path:path}", response_model=schemas.File, status_code=status.HTTP_201_CREATED)
+def upload_file_config(config_id, file_path: str, file: UploadFile, filesystem=Depends(filesystem_dep)):
+    upload_file(f"config/{config_id}/" + file_path, file, filesystem)
 
-@router.put("/files/{file_path:path}", response_model=schemas.File)
-def rename_file(file_path: str, file: schemas.FileUpdate, filesystem=Depends(filesystem_dep)):
+@router.post("/files/data/{file_path:path}", response_model=schemas.File, status_code=status.HTTP_201_CREATED)
+def upload_file_data(file_path: str, file: UploadFile, filesystem=Depends(filesystem_dep)):
+    upload_file("data/" + file_path, file, filesystem)
+
+
+def rename_file(file_path: str, file: schemas.FileUpdate, filesystem):
     filesystem.rename(file_path, file.path)
     return filesystem.get_file_info(file.path)
 
+@router.put("/files/config/{config_id}/{file_path:path}", response_model=schemas.File)
+def rename_file_config(config_id, file_path: str, file: schemas.FileUpdate, filesystem=Depends(filesystem_dep)):
+    return rename_file(f"config/{config_id}/" + file_path, "config/" + file, filesystem)
 
-@router.patch("/files/{file_path:path}", response_model=schemas.File)
-def rename_file_patch(file_path: str, file: schemas.FileUpdate, filesystem=Depends(filesystem_dep)):
-    filesystem.rename(file_path, file.path)
-    return filesystem.get_file_info(file.path)
+@router.patch("/files/config/{config_id}/{file_path:path}", response_model=schemas.File)
+def rename_file_config_patch(config_id: str, file_path: str, file: schemas.FileUpdate, filesystem=Depends(filesystem_dep)):
+    return rename_file(f"config/{config_id}/" + file_path, "config/" + file, filesystem)
+
+@router.put("/files/data/{file_path:path}", response_model=schemas.File)
+def rename_file_config(file_path: str, file: schemas.FileUpdate, filesystem=Depends(filesystem_dep)):
+    return rename_file("data/" + file_path, "data/" + file, filesystem)
+
+@router.patch("/files/data/{file_path:path}", response_model=schemas.File)
+def rename_file_config_patch(file_path: str, file: schemas.FileUpdate, filesystem=Depends(filesystem_dep)):
+    return rename_file("data/" + file_path, "data/" + file, filesystem)
 
 
 @router.delete("/files/{file_path:path}", status_code=status.HTTP_204_NO_CONTENT)
