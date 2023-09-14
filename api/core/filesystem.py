@@ -3,6 +3,7 @@ import shutil
 import enum
 import abc
 from collections import namedtuple
+from fastapi.responses import FileResponse
 from pathlib import Path, PurePosixPath
 
 import humanize
@@ -26,13 +27,13 @@ class FileSystem(abc.ABC):
     def init(self):
         raise NotImplementedError()
 
-    def list_directory(self, path: str = ""):
+    def list_directory(self, path: str = "", dirs: bool = True, recursive: bool = False):
         normalized_path = path if path.endswith("/") else path + "/"
         if not self.isdir(normalized_path):
             raise NotADirectoryError(path)
-        return self._directory_contents(normalized_path)
+        return self._directory_contents(normalized_path, dirs=dirs, recursive=recursive)
 
-    def _directory_contents(self, path: str):
+    def _directory_contents(self, path: str, dirs: bool = True, recursive: bool = False):
         raise NotImplementedError()
 
     def get_file_info(self, path: str):
@@ -81,6 +82,9 @@ class FileSystem(abc.ABC):
         full = str(PurePosixPath(self.root_path, path[1:] if path.startswith("/") else path))
         return full if not path.endswith("/") else full + "/"
 
+    def download(self, path: str):
+        raise NotImplementedError()
+
 
 class LocalFilesystem(FileSystem):
     """ A filesystem that uses the local filesystem. """
@@ -88,8 +92,13 @@ class LocalFilesystem(FileSystem):
     def init(self):
         os.makedirs(self.root_path, exist_ok=True)
 
-    def _directory_contents(self, path: str):
-        files = os.listdir(self.full_path(path))
+    def _directory_contents(self, path: str, dirs: bool = True, recursive: bool = False):
+        if not recursive:
+            files = os.listdir(self.full_path(path))
+        else:
+            files = [os.path.relpath(str(f), self.full_path(path)) for f in Path(self.full_path(path)).rglob("*")]
+        if not dirs:
+            files = [f for f in files if not os.path.isdir(os.path.join(self.full_path(path), f))]
         for file in files:
             yield self.get_file_info((path if path != '/' else '') + file)
 
@@ -139,6 +148,11 @@ class LocalFilesystem(FileSystem):
 
     def full_path_uri(self, path):
         return self.full_path(path)
+    
+    def download(self, path: str):
+        if self.exists(path):
+            return FileResponse(path)
+        return None
 
 
 class S3Filesystem(FileSystem):
@@ -151,24 +165,27 @@ class S3Filesystem(FileSystem):
     def init(self):
         self.s3_client.put_object(Bucket=self.bucket, Key=self.root_path + '/')
 
-    def _directory_contents(self, path: str):
+    def _directory_contents(self, path: str, dirs: bool = True, recursive: bool = False):
         # Get contents of S3 directory
         full_path = self.full_path(path)
         paginator = self.s3_client.get_paginator('list_objects_v2')
-        operation_parameters = {'Bucket': self.bucket, 'Prefix': full_path, 'Delimiter': '/'}
+        operation_parameters = {'Bucket': self.bucket, 'Prefix': full_path}
+        if not recursive:
+            operation_parameters['Delimiter'] = '/'
         page_iterator = paginator.paginate(**operation_parameters)
         for page in page_iterator:
-            for key in page.get('CommonPrefixes', []):
-                yield FileInfo(
-                    path=key['Prefix'][len(self.root_path)+1:],
-                    type=FileTypes.directory,
-                    size=''
-                )
+            if dirs:
+                for key in page.get('CommonPrefixes', []):
+                    yield FileInfo(
+                        path=key['Prefix'][len(str(self.root_path))+1:],
+                        type=FileTypes.directory,
+                        size=''
+                    )
             for key in page.get('Contents', []):
                 if key['Key'] == full_path:
                     continue
                 yield FileInfo(
-                    path=key['Key'][len(self.root_path)+1:],
+                    path=key['Key'][len(str(self.root_path))+1:],
                     type=FileTypes.file,
                     size=humanize.naturalsize(key['Size'])
                 )
@@ -216,6 +233,15 @@ class S3Filesystem(FileSystem):
 
     def full_path_uri(self, path):
         return 's3://' + self.bucket + '/' + self.full_path(path)
+    
+    def download(self, path: str):
+        if self.exists(path):
+            return self.s3_client.generate_presigned_url(
+                "get_object",
+                Params={"Bucket": self.bucket, "Key": self.full_path(path)},
+                ExpiresIn=60*5,
+            )
+        return None
 
 
 def get_filesystem_with_root(root_path: str):
