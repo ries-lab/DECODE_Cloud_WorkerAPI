@@ -33,5 +33,10 @@ models_root_path = os.environ.get("MODELS_ROOT_PATH")
 
 version_config_file = os.environ.get("VERSION_CONFIG_FILE", os.path.join(os.path.dirname(__file__), "..", "version_config.yaml"))
 
-with open(version_config_file) as f:
-    version_config = yaml.safe_load(f)['versions']
+class Version(object):
+    @property
+    def version(self):
+        with open(version_config_file) as f:
+            return yaml.safe_load(f)['versions']
+
+version_config = Version().version
