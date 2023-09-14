@@ -5,7 +5,6 @@ import shutil
 from fastapi import HTTPException, status
 from fastapi.responses import FileResponse
 from pathlib import Path
-from tempfile import NamedTemporaryFile
 
 import workerfacing_api.settings as settings
 
@@ -82,7 +81,7 @@ class S3Filesystem(FileSystem):
             resp = self.s3_client.generate_presigned_url(
                 "get_object",
                 Params={"Bucket": bucket, "Key": path},
-                ExpiresIn=60*5,
+                ExpiresIn=60*10,
             )
             return resp
         except:

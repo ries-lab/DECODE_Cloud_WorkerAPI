@@ -14,8 +14,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from workerfacing_api import settings
-from workerfacing_api.core.rds_models import QueuedJob, JobStates, Base
-from workerfacing_api.core.job_tracking import update_job
+from workerfacing_api.schemas.rds_models import QueuedJob, JobStates, Base
+from workerfacing_api.crud.job_tracking import update_job
 
 
 class JobQueue(ABC):
@@ -72,6 +72,7 @@ class JobQueue(ABC):
                 # (was already popped by another worker), the peek will return None
                 # and not the same object
                 self.pop(env=env, receipt_handle=receipt_handle)
+                item["queue_id"] = receipt_handle
                 return item
         return None
     
@@ -297,7 +298,9 @@ class RDSJobQueue(JobQueue):
         with Session(self.engine) as session:
             hw_specs = item.get('hardware') or {}
             session.add(QueuedJob(
-                job=item,
+                job_id=item["job_id"],
+                job=item["job"],
+                path_upload=item["path_upload"],
                 env=env,
                 # None values in the resource requirements will make any puller match
                 cpu_cores=hw_specs.get('cpu_cores'),
@@ -305,8 +308,8 @@ class RDSJobQueue(JobQueue):
                 gpu_model=hw_specs.get('gpu_model'),
                 gpu_archi=hw_specs.get('gpu_archi'),
                 gpu_mem=hw_specs.get('gpu_mem'),
-                group=item.get('group', None),  # still to add to job model
-                priority=item.get('priority', (1 if item['job_type'] == 'training' else 5)),
+                group=item.get('group', None),  #TODO: still to add to job model
+                priority=item.get('priority', 5),
                 status=JobStates.queued.value,
             ))
             session.commit()
@@ -361,10 +364,9 @@ class RDSJobQueue(JobQueue):
                 self.update_job_status(job.id, JobStates.pulled)
                 job.workers += worker_str
                 session.add(job)
-                job_data = job.job
-                job_data["queue_id"] = str(job.id)
+                # Add queue_id, since not necessarily same as job_id
                 session.commit()
-                return job_data, str(job.id)
+                return job.job, str(job.id)
         return None, None
 
     def pop(self, env: str, receipt_handle: str):
@@ -375,7 +377,13 @@ class RDSJobQueue(JobQueue):
         if not session:
             with Session(self.engine) as session:
                 return self.get_job(job_id, session)
-        return session.query(QueuedJob).filter(QueuedJob.id == job_id).first()
+        res = session.query(QueuedJob).filter(QueuedJob.id == job_id).first()
+        if not res:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Job with id {job_id} not found",
+            )
+        return res
     
     def update_job_status(self, job_id: int, status: JobStates):
         with Session(self.engine) as session:
@@ -384,7 +392,7 @@ class RDSJobQueue(JobQueue):
             job.last_updated = datetime.datetime.utcnow()  # manual update since keepalive signal does not change anything
             session.add(job)
             session.commit()
-            update_job(job.job["id"], status)
+            update_job(job.job_id, status)
     
     def handle_timeouts(self, max_retries: int, timeout_failure: int):
         n_retry, n_failed = 0, 0

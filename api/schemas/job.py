@@ -13,11 +13,17 @@ class HardwareSpecs(BaseModel):
     gpu_mem: int | None = None
 
 
+class JobAttributesBase(BaseModel):
+    config_id: str
+    data_ids: list[str]
+
+
 class JobBase(BaseModel):
     model_id: int
     environment: EnvironmentTypes | None = None
-    priority: int = 5
+    priority: int | None = None
     hardware: HardwareSpecs | None = None
+    attributes: JobAttributesBase
 
 
 class JobReadBase(BaseModel):
@@ -29,42 +35,22 @@ class JobReadBase(BaseModel):
     status: JobStates
 
 
-class TrainJobAttributesBase(BaseModel):
-    class Config:
-        use_enum_values = True
-        extra = "allow"
-
-
-class TrainJobBase(JobBase):
-    attributes: TrainJobAttributesBase
-
-
-class TrainJobCreate(TrainJobBase):
+class TrainJobCreate(JobBase):
     pass
 
 
-class TrainJob(TrainJobBase, JobReadBase):
+class TrainJob(JobBase, JobReadBase):
     job_type: Literal["train"]
 
     class Config:
         orm_mode = True
 
 
-class InferenceJobAttributes(BaseModel):
-
-    class Config:
-        extra = "allow"
-
-
-class InferenceJobBase(JobBase):
-    attributes: InferenceJobAttributes
-
-
-class InferenceJobCreate(InferenceJobBase):
+class InferenceJobCreate(JobBase):
     pass
 
 
-class InferenceJob(InferenceJobBase, JobReadBase):
+class InferenceJob(JobBase, JobReadBase):
     job_type: Literal["inference"]
 
     class Config:
@@ -72,7 +58,25 @@ class InferenceJob(InferenceJobBase, JobReadBase):
 
 
 class Job(JobBase, JobReadBase):
-    attributes: TrainJobAttributesBase | InferenceJobAttributes
+    pass
+
+
+class JobSpecs(BaseModel):
+    date_created: datetime.datetime
+    image_url: str
+    command: str | list[str] | None
+    job_env: dict[str, str] | None
+    files: dict[str, str]
+
+
+class QueueJob(BaseModel):
+    job_id: str
+    job: JobSpecs
+    env: EnvironmentTypes | None = None
+    hardware: HardwareSpecs
+    group: str | None = None
+    priority: int | None = None
+    path_upload: str
 
     class Config:
         orm_mode = True

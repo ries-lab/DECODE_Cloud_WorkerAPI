@@ -3,7 +3,7 @@ from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
 
 import workerfacing_api.settings as settings
-from workerfacing_api.core.rds_models import JobStates
+from workerfacing_api.schemas.rds_models import JobStates
 
 
 def update_job(job_id: int, job_status: JobStates) -> None:

@@ -1,14 +1,15 @@
-from fastapi import APIRouter, Body, Depends, Query, status
-from workerfacing_api.core.rds_models import JobStates
+from fastapi import APIRouter, Depends, Query, status
+from fastapi.encoders import jsonable_encoder
 from workerfacing_api.core.queue import JobQueue
 from workerfacing_api.queue import get_queue
-from workerfacing_api.core.job_tracking import update_job
+from workerfacing_api.schemas.rds_models import JobStates
+from workerfacing_api.schemas.queue_jobs import JobSpecsQueue, QueueJob
 
 
 router = APIRouter()
 
 
-@router.get("/jobs", response_model=list[dict])
+@router.get("/jobs", response_model=list[JobSpecsQueue])
 async def get_jobs(
     hostname: str,
     cpu_cores: int,
@@ -36,16 +37,17 @@ async def get_jobs(
             older_than=older_than or 0,
         )
         if job:
+            job = JobSpecsQueue(**job)
             jobs.append(job)
-            update_job(job_id=job["id"], job_status=JobStates.running)
+            queue.update_job_status(job.queue_id, status=JobStates.running)
         else:
             break
     return jobs
 
 
 @router.post("/jobs")
-async def post_job(job: dict = Body(), queue: JobQueue = Depends(get_queue)):
-    queue.enqueue(env=job.get('environment'), item=job)
+async def post_job(job: QueueJob, queue: JobQueue = Depends(get_queue)):
+    queue.enqueue(env=job.env.value, item=jsonable_encoder(job))
     return job
 
 

@@ -1,33 +1,27 @@
 versions:
-  v0.10.1:
+  latest:
     entrypoints:
       train:
-        image_url: #TODO
+        image_url: placeholder  #TODO
+        command: "python -m cli.train --config-dir=/data/config --config-name=config"
         aws_batch:
-          job_definition: decode_train_0_10_1
+          job_definition: decode_train_latest
           hardware:
             MEMORY: 8000
             VCPU: 4
             GPU: 1
           timeout: 18000
         params:
-          required:
-            # id: cmd_arg
-            param_path: param_path
-            calib_path: calib_path
-          optional:
+          config_id: /data/config
+          data_ids: /data/data
       fit:
-        image_url: #TODO
+        image_url: placeholder  #TODO
+        command: #TODO
         aws_batch:
-          job_definition: decode_fit_0_10_1
+          job_definition: decode_fit_latest
           hardware:
             MEMORY: 8000
             VCPU: 4
             GPU: 1
           timeout: 3000
         params:
-          required:
-            emitter_path:
-            frame_path:
-            frame_meta_path:
-          optional:

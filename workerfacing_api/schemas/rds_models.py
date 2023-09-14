@@ -1,6 +1,6 @@
 import datetime
 import enum
-from sqlalchemy import Column, Enum, Integer, String, DateTime, JSON, Boolean
+from sqlalchemy import Column, Enum, Integer, String, DateTime, JSON
 from sqlalchemy.ext.declarative import declarative_base
 
 
@@ -26,9 +26,11 @@ class QueuedJob(Base):
     status = Column(String, Enum(JobStates), nullable=False, default=JobStates.queued.value)
     num_retries = Column(Integer, default=0)
 
+    job_id = Column(Integer, nullable=False)
     job = Column(JSON, nullable=False)
+    path_upload = Column(String, nullable=False)
 
-    # filters
+    # filters (see HardwareSpecs)
     env = Column(String)
     # resource requirements (could be json column for flexibility, but separate columns optimize performance)
     cpu_cores = Column(Integer, default=None)
