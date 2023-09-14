@@ -3,7 +3,7 @@ versions:
     entrypoints:
       train:
         image_url: placeholder  #TODO
-        command: "python -m cli.train --config-dir=/data/config --config-name=config"
+        command: "python -m cli.train --config-dir=/data/config --config-name=config"  # TODO: override output folder
         aws_batch:
           job_definition: decode_train_latest
           hardware:

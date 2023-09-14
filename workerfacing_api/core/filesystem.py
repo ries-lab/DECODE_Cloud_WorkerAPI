@@ -51,7 +51,7 @@ class LocalFilesystem(FileSystem):
                 detail="Path is not in base directory",
             )
         try:
-            os.makedirs(Path(path).parent)
+            os.makedirs(Path(path).parent, exist_ok=True)
             with open(path, "wb") as f:
                 shutil.copyfileobj(file.file, f)
         finally:

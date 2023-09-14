@@ -19,8 +19,8 @@ async def get_file(path: str, request: Request, url: bool = True, filesystem=Dep
         return filesystem.get_file(path)
 
 
-@router.post("/files/{job_id}", status_code=status.HTTP_201_CREATED)
-async def post_file(job_id: int, file: UploadFile = File(...), filesystem=Depends(filesystem_dep), queue: JobQueue = Depends(get_queue)):
+@router.post("/files/{job_id}/{path:path}", status_code=status.HTTP_201_CREATED)
+async def post_file(job_id: int, path: str, file: UploadFile = File(...), filesystem=Depends(filesystem_dep), queue: JobQueue = Depends(get_queue)):
     job = queue.get_job(job_id)
-    path = os.path.join(job.path_upload, file.filename)  # not pathlib.Path since it does s3://x => s3:/x
+    path = os.path.join(job.path_upload, path, file.filename)  # not pathlib.Path since it does s3://x => s3:/x
     return filesystem.post_file(file, path)

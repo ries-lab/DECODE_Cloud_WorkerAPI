@@ -5,13 +5,13 @@ from sqlalchemy.orm import Session, joinedload
 
 import api.models as models
 import api.schemas as schemas
-from api.core.filesystem import get_user_filesystem, get_filesystem_with_root
+from api.core.filesystem import get_user_filesystem, get_user_modelsystem
 import api.settings as settings
 
 
 def enqueue_job(job: models.Job, enqueueing_func: callable):
     user_fs = get_user_filesystem(user_id=job.model.user_id)
-    fs = get_filesystem_with_root('')
+    model_fs = get_user_modelsystem(user_id=job.model.user_id)
 
     version_config = settings.version_config[job.model.decode_version]['entrypoints'][job.job_type]
 
@@ -47,7 +47,7 @@ def enqueue_job(job: models.Job, enqueueing_func: callable):
         hardware=job.hardware,
         group=None,  #TODO
         priority=job.priority or (1 if job.job_type == models.JobTypes.train else 5),
-        path_upload=fs.full_path_uri(job.model.model_path),
+        path_upload=model_fs.full_path_uri(job.model.model_path),
     )
     enqueueing_func(queue_item)
 

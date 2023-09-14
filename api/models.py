@@ -1,7 +1,7 @@
 import enum
 import datetime
 
-from sqlalchemy import Column, ForeignKey, Integer, String, Enum, DateTime, JSON
+from sqlalchemy import Column, ForeignKey, Integer, String, Enum, DateTime, JSON, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from api.database import Base
@@ -51,6 +51,7 @@ class Model(Base):
     train_attributes = Column(JSON, nullable=True)
     user_id = Column(String, nullable=False)
     jobs = relationship("Job", back_populates="model", cascade="delete")
+    __table_args__ = (UniqueConstraint("name", "user_id", name="_user_model_name_unique"),)
 
 
 class Job(Base):

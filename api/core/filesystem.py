@@ -2,8 +2,10 @@ import os
 import shutil
 import enum
 import abc
+import io
+import zipfile
 from collections import namedtuple
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pathlib import Path, PurePosixPath
 
 import humanize
@@ -149,10 +151,22 @@ class LocalFilesystem(FileSystem):
     def full_path_uri(self, path):
         return self.full_path(path)
     
-    def download(self, path: str):
-        if self.exists(path):
-            return FileResponse(path)
-        return None
+    def download(self, path):
+        if not self.exists(path):
+            return None
+        if self.isdir(path):
+            zip_io = io.BytesIO()
+            with zipfile.ZipFile(zip_io, mode="w", compression=zipfile.ZIP_DEFLATED) as temp_zip:
+                for fpath in self.list_directory(path, dirs=False, recursive=True):
+                    fpath = str(fpath.path)
+                    temp_zip.write(self.full_path(fpath), os.path.relpath(fpath, path))
+            return StreamingResponse(
+                iter([zip_io.getvalue()]),
+                media_type="application/x-zip-compressed",
+                headers={"Content-Disposition": f"attachment; filename={path[:-1]}.zip"},
+            )
+        else:
+            return FileResponse(self.full_path(path))
 
 
 class S3Filesystem(FileSystem):
@@ -234,14 +248,24 @@ class S3Filesystem(FileSystem):
     def full_path_uri(self, path):
         return 's3://' + self.bucket + '/' + self.full_path(path)
     
-    def download(self, path: str):
-        if self.exists(path):
-            return self.s3_client.generate_presigned_url(
-                "get_object",
-                Params={"Bucket": self.bucket, "Key": self.full_path(path)},
-                ExpiresIn=60*5,
-            )
-        return None
+    def download(self, path):
+        if not self.exists(path):
+            return None
+        _get_file_content = lambda path: self.s3_client.get_object(Bucket=self.bucket, Key=self.full_path(path))["Body"]
+        if self.isdir(path):
+            zip_buffer = io.BytesIO()
+            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                for fpath in self.list_directory(path, dirs=False, recursive=True):
+                    fpath = str(fpath.path)
+                    zipf.writestr(os.path.relpath(fpath, path), _get_file_content(fpath).read())
+            zip_buffer.seek(0)
+            headers = {
+                "Content-Disposition": f"attachment; filename={path[:-1]}.zip",
+                "Content-Type": "application/zip",
+            }
+            return StreamingResponse(io.BytesIO(zip_buffer.read()), headers=headers)
+        else:
+            return StreamingResponse(content=_get_file_content(path).iter_chunks())
 
 
 def get_filesystem_with_root(root_path: str):
@@ -258,3 +282,8 @@ def get_filesystem_with_root(root_path: str):
 def get_user_filesystem(user_id: str):
     """ Get the filesystem to use for a user. """
     return get_filesystem_with_root(Path(settings.user_data_root_path) / user_id)
+
+
+def get_user_modelsystem(user_id: str):
+    """ Get the models filesystem to use for a user. """
+    return get_filesystem_with_root(Path(settings.models_root_path) / user_id)
