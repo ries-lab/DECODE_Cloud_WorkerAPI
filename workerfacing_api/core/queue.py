@@ -351,7 +351,7 @@ class RDSJobQueue(JobQueue):
                 )
                 if settings.retry_different:
                     # only if worker did not already try running this job
-                    ret = ret.filter(QueuedJob.workers.contains(worker_str) == 0)
+                    ret = ret.filter(QueuedJob.workers.contains(worker_str) == False)
                 ret = ret.order_by(QueuedJob.priority.desc()).order_by(QueuedJob.creation_timestamp.asc())
                 ret = ret.with_for_update().first()  # with_for_update locks concurrent pulls
                 return ret
