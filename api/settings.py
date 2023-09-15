@@ -1,5 +1,6 @@
 import json
 import os
+from typing import Any
 import yaml
 
 database_url = os.environ.get("DATABASE_URL", "sqlite:///./sql_app.db")
@@ -33,10 +34,15 @@ models_root_path = os.environ.get("MODELS_ROOT_PATH")
 
 version_config_file = os.environ.get("VERSION_CONFIG_FILE", os.path.join(os.path.dirname(__file__), "..", "version_config.yaml"))
 
-class Version(object):
-    @property
-    def version(self):
+class JITVersion(object):
+    def __getattribute__(self, __name: str) -> Any:
         with open(version_config_file) as f:
-            return yaml.safe_load(f)['versions']
+            versions = yaml.safe_load(f)['versions']
+        if __name == 'versions':
+            return versions
+        return getattr(versions, __name)
+    
+    def __getitem__(self, item):
+        return self.versions[item]
 
-version_config = Version().version
+version_config = JITVersion()
