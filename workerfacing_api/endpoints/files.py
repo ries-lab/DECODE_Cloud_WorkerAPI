@@ -12,11 +12,13 @@ s3_client = boto3.client("s3")
 
 
 @router.get("/files/{path:path}", status_code=status.HTTP_200_OK)
-async def get_file(path: str, request: Request, url: bool = True, filesystem=Depends(filesystem_dep)) -> str:
-    if url:
-        return filesystem.get_file_url(path, request.url._url)
-    else:
-        return filesystem.get_file(path)
+async def get_file(path: str, filesystem=Depends(filesystem_dep)) -> str:
+    return filesystem.get_file(path)
+
+
+@router.get("/file_url/{path:path}", status_code=status.HTTP_200_OK)
+async def get_file_url(path: str, request: Request, filesystem=Depends(filesystem_dep)) -> str:
+    return filesystem.get_file_url(path, request.url._url, "/files_url", "/files")
 
 
 @router.post("/files/{job_id}/{path:path}", status_code=status.HTTP_201_CREATED)
