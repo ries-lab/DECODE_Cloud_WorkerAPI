@@ -72,7 +72,7 @@ class JobSpecs(BaseModel):
 class QueueJob(BaseModel):
     job_id: str
     job: JobSpecs
-    env: EnvironmentTypes | None = None
+    environment: EnvironmentTypes | None = None
     hardware: HardwareSpecs
     group: str | None = None
     priority: int | None = None

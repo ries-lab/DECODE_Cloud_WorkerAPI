@@ -43,7 +43,7 @@ def enqueue_job(job: models.Job, enqueueing_func: callable):
     queue_item = schemas.QueueJob(
         job_id=job.id,
         job=job_specs,
-        env=job.environment if job.environment else models.EnvironmentTypes.any,
+        environment=job.environment if job.environment else models.EnvironmentTypes.any,
         hardware=job.hardware,
         group=None,  #TODO
         priority=job.priority or (1 if job.job_type == models.JobTypes.train else 5),

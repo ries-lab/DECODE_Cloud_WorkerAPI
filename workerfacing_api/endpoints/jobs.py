@@ -14,7 +14,7 @@ async def get_jobs(
     hostname: str,
     cpu_cores: int,
     memory: int,
-    env: str | None = None,
+    environment: str | None = None,
     gpu_model: str | None = None,
     gpu_archi: str | None = None,
     gpu_mem: int | None = None,
@@ -29,7 +29,7 @@ async def get_jobs(
             hostname=hostname,
             cpu_cores=cpu_cores,
             memory=memory,
-            env=env,
+            environment=environment,
             gpu_model=gpu_model,
             gpu_archi=gpu_archi,
             gpu_mem=gpu_mem or 0,
@@ -47,7 +47,7 @@ async def get_jobs(
 
 @router.post("/jobs")
 async def post_job(job: QueueJob, queue: JobQueue = Depends(get_queue)):
-    queue.enqueue(env=job.env.value, item=jsonable_encoder(job))
+    queue.enqueue(environment=job.environment.value, item=jsonable_encoder(job))
     return job
 
 

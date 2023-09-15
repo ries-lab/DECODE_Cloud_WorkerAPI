@@ -85,20 +85,20 @@ def full_jobs():
 @pytest.fixture
 def populated_queue(queue, jobs, env_name):
     job1, job2, job3, job4 = jobs
-    queue.enqueue(env=env_name, item=job1)
-    queue.enqueue(env=env_name, item=job2)
-    queue.enqueue(env=None, item=job3)
-    queue.enqueue(env=f"not-{env_name}", item=job4)
+    queue.enqueue(environment=env_name, item=job1)
+    queue.enqueue(environment=env_name, item=job2)
+    queue.enqueue(environment=None, item=job3)
+    queue.enqueue(environment=f"not-{env_name}", item=job4)
     return queue
 
 
 @pytest.fixture
 def populated_full_queue(queue, full_jobs, env_name):
     job1, job2, job3, job4 = full_jobs
-    queue.enqueue(env=env_name, item=job1)
-    queue.enqueue(env=env_name, item=job2)
-    queue.enqueue(env=env_name, item=job3)
-    queue.enqueue(env=env_name, item=job4)
+    queue.enqueue(environment=env_name, item=job1)
+    queue.enqueue(environment=env_name, item=job2)
+    queue.enqueue(environment=env_name, item=job3)
+    queue.enqueue(environment=env_name, item=job4)
     return queue
 
 
@@ -118,30 +118,30 @@ class TestLocalQueue:
 
     def test_create_queue(self, queue, env_name):
         # test queue is empty
-        assert queue.peek(hostname="i", env=env_name)[0] is None
+        assert queue.peek(hostname="i", environment=env_name)[0] is None
 
     def test_enqueue(self, populated_queue, env_name):
-        assert populated_queue.peek(hostname="i", env=env_name)[0] is not None
+        assert populated_queue.peek(hostname="i", environment=env_name)[0] is not None
 
     def test_peek(self, populated_queue, env_name):
-        assert populated_queue.peek(hostname="i", env=env_name)[0]['model_id'] == 0
+        assert populated_queue.peek(hostname="i", environment=env_name)[0]['model_id'] == 0
         # peeking does not remove elements
-        assert populated_queue.peek(hostname="i", env=env_name)[0]['model_id'] == 0
+        assert populated_queue.peek(hostname="i", environment=env_name)[0]['model_id'] == 0
         
     def test_dequeue(self, populated_queue, env_name):
-        assert populated_queue.dequeue(env=env_name)['model_id'] == 0
+        assert populated_queue.dequeue(environment=env_name)['model_id'] == 0
         # dequeue removes elements
-        assert populated_queue.dequeue(env=env_name)['model_id'] == 1
+        assert populated_queue.dequeue(environment=env_name)['model_id'] == 1
         # None env jobs can be pulled by everyone
-        assert populated_queue.dequeue(env=None)['model_id'] == 2
+        assert populated_queue.dequeue(environment=None)['model_id'] == 2
         # environment is filtered correctly
-        assert populated_queue.dequeue(env=env_name) is None
+        assert populated_queue.dequeue(environment=env_name) is None
     
     def test_dequeue_old(self, populated_queue, env_name):
         # old enough
-        assert populated_queue.dequeue(env=env_name, older_than=5*60) is not None
+        assert populated_queue.dequeue(environment=env_name, older_than=5*60) is not None
         # not old enough
-        assert populated_queue.dequeue(env=env_name, older_than=5*60) is None
+        assert populated_queue.dequeue(environment=env_name, older_than=5*60) is None
 
 
 #@pytest.mark.skip("too slow in development")
@@ -169,22 +169,22 @@ class TestRDSQueue(TestLocalQueue):
     # need to override since RDS queue takes date of creation in DB
     def test_dequeue_old(self, populated_queue, env_name):
         # not old enough
-        assert populated_queue.dequeue(env=env_name, older_than=2) is None
+        assert populated_queue.dequeue(environment=env_name, older_than=2) is None
         # old enough
         time.sleep(2)
-        assert populated_queue.dequeue(env=env_name, older_than=2) is not None
+        assert populated_queue.dequeue(environment=env_name, older_than=2) is not None
     
     # additional tests for additional functionality
     def test_filtering(self, populated_full_queue, env_name):
-        assert populated_full_queue.peek(hostname="i", env=env_name, cpu_cores=2)[0]["model_id"] == 1
-        assert populated_full_queue.peek(hostname="i", env=env_name, memory=1)[0]["model_id"] == 1
-        assert populated_full_queue.peek(hostname="i", env=env_name, gpu_model="gpu_model")[0]["model_id"] == 1
-        assert populated_full_queue.peek(hostname="i", env=env_name, gpu_archi="gpu_archi")[0]["model_id"] == 1
+        assert populated_full_queue.peek(hostname="i", environment=env_name, cpu_cores=2)[0]["model_id"] == 1
+        assert populated_full_queue.peek(hostname="i", environment=env_name, memory=1)[0]["model_id"] == 1
+        assert populated_full_queue.peek(hostname="i", environment=env_name, gpu_model="gpu_model")[0]["model_id"] == 1
+        assert populated_full_queue.peek(hostname="i", environment=env_name, gpu_archi="gpu_archi")[0]["model_id"] == 1
     
     def test_priorities(self, populated_full_queue, env_name):
         # group priority
-        assert populated_full_queue.dequeue(env=env_name, groups=["group", "another group"])["model_id"] == 2
+        assert populated_full_queue.dequeue(environment=env_name, groups=["group", "another group"])["model_id"] == 2
         # job priority
-        assert populated_full_queue.dequeue(env=env_name)["model_id"] == 1
-        assert populated_full_queue.dequeue(env=env_name)["model_id"] == 3
+        assert populated_full_queue.dequeue(environment=env_name)["model_id"] == 1
+        assert populated_full_queue.dequeue(environment=env_name)["model_id"] == 3
 

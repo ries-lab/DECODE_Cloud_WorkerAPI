@@ -12,8 +12,8 @@ versions:
             GPU: 1
           timeout: 18000
         params:
-          config_id: /data/config
-          data_ids: /data/data
+          config_id: config
+          data_ids: data
       fit:
         image_url: placeholder  #TODO
         command: #TODO

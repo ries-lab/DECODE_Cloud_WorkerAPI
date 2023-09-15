@@ -31,7 +31,7 @@ class QueuedJob(Base):
     path_upload = Column(String, nullable=False)
 
     # filters (see HardwareSpecs)
-    env = Column(String)
+    environment = Column(String)
     # resource requirements (could be json column for flexibility, but separate columns optimize performance)
     cpu_cores = Column(Integer, default=None)
     memory = Column(Integer, default=None)

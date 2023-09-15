@@ -35,13 +35,13 @@ class JobQueue(ABC):
         pass
 
     @abstractmethod
-    def enqueue(self, env: str | None, item: dict):
+    def enqueue(self, environment: str | None, item: dict):
         """Push a new job to the queue.
         """
         pass
 
     @abstractmethod
-    def peek(self, hostname: str, env: str | None, older_than: int = 0) -> Tuple[dict, str | None] | None:
+    def peek(self, hostname: str, environment: str | None, older_than: int = 0) -> Tuple[dict, str | None] | None:
         """Look at first element in the queue.
         
         Returns:
@@ -51,16 +51,16 @@ class JobQueue(ABC):
         pass
 
     @abstractmethod
-    def pop(self, env: str | None, receipt_handle: str):
+    def pop(self, environment: str | None, receipt_handle: str):
         """Delete job from the queue.
         """
         pass
 
-    def dequeue(self, env: str | None, older_than: int = 0, **kwargs) -> dict | None:
+    def dequeue(self, environment: str | None, older_than: int = 0, **kwargs) -> dict | None:
         """Peek last element and remove it from the queue if it is older than `older_than'.
         """
         # get last element
-        item, receipt_handle = self.peek(env=env, older_than=older_than, **kwargs)
+        item, receipt_handle = self.peek(environment=environment, older_than=older_than, **kwargs)
         # if element found
         if item:
             # check "old enough"
@@ -71,7 +71,7 @@ class JobQueue(ABC):
                 # concurrency handled by the fact that if the object cannot be popped
                 # (was already popped by another worker), the peek will return None
                 # and not the same object
-                self.pop(env=env, receipt_handle=receipt_handle)
+                self.pop(environment=environment, receipt_handle=receipt_handle)
                 item["queue_id"] = receipt_handle
                 return item
         return None
@@ -116,36 +116,36 @@ class LocalJobQueue(JobQueue):
         except:
             pass
     
-    def enqueue(self, env: str | None, item: dict):
+    def enqueue(self, environment: str | None, item: dict):
         with open(self.queue_path, 'rb+') as f:
             # Read in
             queue = pickle.load(f)
             # Push new job
-            queue[env] = queue.get(env, list()) + [item]
+            queue[environment] = queue.get(environment, list()) + [item]
             # Overwrite
             f.seek(0)
             f.truncate()
             pickle.dump(queue, f)
-        super().enqueue(env, item)
+        super().enqueue(environment, item)
     
-    def peek(self, hostname: str, env: str | None, older_than: int = 0) -> Tuple[dict | None, str | None]:
+    def peek(self, hostname: str, environment: str | None, older_than: int = 0) -> Tuple[dict | None, str | None]:
         # older than argument not supported
         with open(self.queue_path, 'rb+') as f:
             queue = pickle.load(f)
-        if len(queue.get(env, list())):
-            item = queue[env][0]
+        if len(queue.get(environment, list())):
+            item = queue[environment][0]
             return item, sha256(item)
         return None, None
 
-    def pop(self, env: str | None, receipt_handle):
+    def pop(self, environment: str | None, receipt_handle):
         with open(self.queue_path, 'rb+') as f:
             queue = pickle.load(f)
-            if queue.get(env):
-                if sha256(queue[env][0]) != receipt_handle:
+            if queue.get(environment):
+                if sha256(queue[environment][0]) != receipt_handle:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail=f"Element not first in queue.")
-            queue[env] = queue[env][1:]
+            queue[environment] = queue[environment][1:]
             f.seek(0)
             f.truncate()
             pickle.dump(queue, f)
@@ -165,27 +165,27 @@ class SQSJobQueue(JobQueue):
     """SQS job queue.
     """
 
-    def __init__(self, envs: list[str | None], sqs_client = None):
+    def __init__(self, environments: list[str | None], sqs_client = None):
         self.sqs_client = sqs_client or boto3.client('sqs')
         self.queue_names = {}
-        if None not in envs:
-            envs = [None] + envs
-        for env in envs:
-            self.queue_names[env] = f'{str(env)}_queue.fifo'
+        if None not in environments:
+            environments = [None] + environments
+        for environment in environments:
+            self.queue_names[environment] = f'{str(environment)}_queue.fifo'
         self.queue_urls = dict()
-        for env, queue_name in self.queue_names.items():
+        for environment, queue_name in self.queue_names.items():
             try:
-                self.queue_urls[env] = self.sqs_client.get_queue_url(QueueName=queue_name)['QueueUrl']
+                self.queue_urls[environment] = self.sqs_client.get_queue_url(QueueName=queue_name)['QueueUrl']
             except self.sqs_client.exceptions.QueueDoesNotExist:
                 pass
 
     def create(self, err_on_exists: bool = True):
-        for env, queue_name in self.queue_names.items():
+        for environment, queue_name in self.queue_names.items():
             try:
                 res = self.sqs_client.create_queue(QueueName=queue_name, Attributes={
                     'FifoQueue': 'true', 'ContentBasedDeduplication': 'true', 'VisibilityTimeout': '5'}
                 )
-                self.queue_urls[env] = res['QueueUrl']
+                self.queue_urls[environment] = res['QueueUrl']
             except self.sqs_client.exceptions.QueueNameExists:
                 if err_on_exists:
                     raise HTTPException(
@@ -197,13 +197,13 @@ class SQSJobQueue(JobQueue):
         for queue_url in self.queue_urls.values():
             self.sqs_client.delete_queue(QueueUrl=queue_url)
     
-    def delete_env(self, env: str | None):
-        self.sqs_client.delete_queue(QueueUrl=self.queue_urls[env])
+    def delete_env(self, environment: str | None):
+        self.sqs_client.delete_queue(QueueUrl=self.queue_urls[environment])
 
-    def enqueue(self, env: str | None, item: dict):
+    def enqueue(self, environment: str | None, item: dict):
         try:
             self.sqs_client.send_message(
-                QueueUrl=self.queue_urls[env],
+                QueueUrl=self.queue_urls[environment],
                 MessageBody=json.dumps(item),
                 MessageGroupId="0",
             )
@@ -211,13 +211,13 @@ class SQSJobQueue(JobQueue):
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error sending message to SQS queue: {error}.")
-        super().enqueue(env, item)
+        super().enqueue(environment, item)
 
-    def peek(self, hostname: str, env: str, older_than: int = 0) -> Tuple[dict | None, str | None]:
+    def peek(self, hostname: str, environment: str, older_than: int = 0) -> Tuple[dict | None, str | None]:
         # older_than argument not supported
         try:
             response = self.sqs_client.receive_message(
-                QueueUrl=self.queue_urls[env],
+                QueueUrl=self.queue_urls[environment],
                 MaxNumberOfMessages=1,
                 WaitTimeSeconds=10,
             )
@@ -233,10 +233,10 @@ class SQSJobQueue(JobQueue):
             return item, receipt_handle
         return None, None
 
-    def pop(self, env: str, receipt_handle: str):
+    def pop(self, environment: str, receipt_handle: str):
         try:
             response = self.sqs_client.delete_message(
-                QueueUrl=self.queue_urls[env],
+                QueueUrl=self.queue_urls[environment],
                 ReceiptHandle=receipt_handle,
             )
         except botocore.exceptions.ClientError as error:
@@ -294,14 +294,14 @@ class RDSJobQueue(JobQueue):
     def delete(self):
         Base.metadata.drop_all(self.engine)
 
-    def enqueue(self, env: str | None, item: dict):
+    def enqueue(self, environment: str | None, item: dict):
         with Session(self.engine) as session:
             hw_specs = item.get('hardware') or {}
             session.add(QueuedJob(
                 job_id=item["job_id"],
                 job=item["job"],
                 path_upload=item["path_upload"],
-                env=env,
+                environment=environment,
                 # None values in the resource requirements will make any puller match
                 cpu_cores=hw_specs.get('cpu_cores'),
                 memory=hw_specs.get('memory'),
@@ -320,7 +320,7 @@ class RDSJobQueue(JobQueue):
         cpu_cores: int,
         memory: int,
         gpu_mem: int,
-        env: str | None = None,
+        environment: str | None = None,
         gpu_model: str | None = None,
         gpu_archi: str | None = None,
         groups: list[str] | None = None,
@@ -341,8 +341,8 @@ class RDSJobQueue(JobQueue):
                 ret = query.filter(
                     QueuedJob.status == JobStates.queued.value,
                     (((QueuedJob.creation_timestamp < datetime.datetime.utcnow() - datetime.timedelta(seconds=older_than))
-                    & (QueuedJob.env == None))
-                    | (QueuedJob.env == env)),  # right environment pulls its jobs immediately
+                    & (QueuedJob.environment == None))
+                    | (QueuedJob.environment == environment)),  # right environment pulls its jobs immediately
                     (QueuedJob.cpu_cores <= cpu_cores) | (QueuedJob.cpu_cores == None),
                     (QueuedJob.memory <= memory) | (QueuedJob.memory == None),
                     (QueuedJob.gpu_model == gpu_model) | (QueuedJob.gpu_model == None),
@@ -369,7 +369,7 @@ class RDSJobQueue(JobQueue):
                 return job.job, str(job.id)
         return None, None
 
-    def pop(self, env: str, receipt_handle: str):
+    def pop(self, environment: str, receipt_handle: str):
         # not doing anything, since we keep the job in the database for tracking
         pass
     
