@@ -130,3 +130,7 @@ dmypy.json
 
 # Databases
 *.db
+
+# Local filesystem (default)
+user_data/
+model_data/

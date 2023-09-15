@@ -350,8 +350,8 @@ class RDSJobQueue(JobQueue):
                     (QueuedJob.gpu_mem <= gpu_mem) | (QueuedJob.gpu_mem == None),
                 )
                 if settings.retry_different:
-                    # only if worker did not already try running this job
-                    ret = ret.filter(QueuedJob.workers.contains(worker_str) == False)
+                   # only if worker did not already try running this job
+                   ret = ret.filter(QueuedJob.workers.contains(worker_str) == False)
                 ret = ret.order_by(QueuedJob.priority.desc()).order_by(QueuedJob.creation_timestamp.asc())
                 ret = ret.with_for_update().first()  # with_for_update locks concurrent pulls
                 return ret
@@ -361,7 +361,7 @@ class RDSJobQueue(JobQueue):
             if job is None:
                 job = filter_sort_query(query)
             if job:
-                self.update_job_status(job.id, JobStates.pulled)
+                self._update_job_status(session, job, status=JobStates.pulled)
                 job.workers += worker_str
                 session.add(job)
                 # Add queue_id, since not necessarily same as job_id
@@ -385,14 +385,17 @@ class RDSJobQueue(JobQueue):
             )
         return res
     
+    def _update_job_status(self, session, job, status: JobStates):
+        job.status = status.value
+        job.last_updated = datetime.datetime.utcnow()
+        session.add(job)
+        session.commit()
+        update_job(job.job_id, status)
+    
     def update_job_status(self, job_id: int, status: JobStates):
         with Session(self.engine) as session:
             job = self.get_job(job_id, session)
-            job.status = status.value
-            job.last_updated = datetime.datetime.utcnow()  # manual update since keepalive signal does not change anything
-            session.add(job)
-            session.commit()
-            update_job(job.job_id, status)
+            self._update_job_status(session, job, status)
     
     def handle_timeouts(self, max_retries: int, timeout_failure: int):
         n_retry, n_failed = 0, 0
