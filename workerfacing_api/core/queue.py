@@ -364,7 +364,6 @@ class RDSJobQueue(JobQueue):
                 self._update_job_status(session, job, status=JobStates.pulled)
                 job.workers += worker_str
                 session.add(job)
-                # Add queue_id, since not necessarily same as job_id
                 session.commit()
                 return job.job, str(job.id)
         return None, None

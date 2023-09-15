@@ -39,7 +39,7 @@ async def get_jobs(
         if job:
             job = JobSpecsQueue(**job)
             jobs.append(job)
-            queue.update_job_status(job.queue_id, status=JobStates.running)
+            queue.update_job_status(job.job_id, status=JobStates.running)
         else:
             break
     return jobs

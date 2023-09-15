@@ -43,4 +43,4 @@ class QueueJob(BaseModel):
 
 
 class JobSpecsQueue(JobSpecs):
-    queue_id: str  # added to user-facing API model, to trace back to DB
+    job_id: str  # added to user-facing API model, to trace back to DB
