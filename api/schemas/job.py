@@ -1,8 +1,7 @@
-from typing import Literal
 import datetime
 from pydantic import BaseModel
 
-from api.models import EnvironmentTypes, JobStates
+from api.models import EnvironmentTypes, JobStates, JobTypes
 
 
 class HardwareSpecs(BaseModel):
@@ -21,6 +20,7 @@ class JobAttributesBase(BaseModel):
 
 class JobBase(BaseModel):
     model_id: int
+    job_type: JobTypes
     environment: EnvironmentTypes | None = None
     priority: int | None = None
     hardware: HardwareSpecs | None = None
@@ -29,33 +29,14 @@ class JobBase(BaseModel):
 
 class JobReadBase(BaseModel):
     id: int
-    job_type: Literal["train", "inference"]
     date_created: datetime.datetime
     date_started: datetime.datetime | None
     date_finished: datetime.datetime | None
     status: JobStates
 
 
-class TrainJobCreate(JobBase):
+class JobCreate(JobBase):
     pass
-
-
-class TrainJob(JobBase, JobReadBase):
-    job_type: Literal["train"]
-
-    class Config:
-        orm_mode = True
-
-
-class InferenceJobCreate(JobBase):
-    pass
-
-
-class InferenceJob(JobBase, JobReadBase):
-    job_type: Literal["inference"]
-
-    class Config:
-        orm_mode = True
 
 
 class Job(JobBase, JobReadBase):

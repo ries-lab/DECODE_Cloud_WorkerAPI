@@ -1,5 +1,4 @@
 import os
-from datetime import datetime
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 
@@ -80,7 +79,19 @@ def _validate_files(filesystem, paths: list[str]):
             raise HTTPException(status_code=400, detail=f"File {_file} does not exist")
 
 
-def create_train_job(db: Session, model: models.Model, enqueueing_func: callable, train_job: schemas.TrainJobCreate):
+def _create_base_job(db: Session, model: models.Model, enqueueing_func: callable, job: schemas.JobCreate):
+    db_job = models.Job(**job.dict())
+    db.add(db_job)
+    model.last_used = db_job.date_created
+    db.add(model)
+    db.flush()
+    enqueue_job(db_job, enqueueing_func)
+    db.commit()
+    db.refresh(db_job)
+    return db_job
+
+
+def create_train_job(db: Session, model: models.Model, enqueueing_func: callable, train_job: schemas.JobCreate):
     if model.status == models.ModelStates.trained.value:
         raise HTTPException(status_code=400, detail=f"Model {train_job.model_id} is already trained")
     if model.status == models.ModelStates.training.value:
@@ -89,36 +100,12 @@ def create_train_job(db: Session, model: models.Model, enqueueing_func: callable
         raise HTTPException(status_code=400, detail="Priority must be between 1 and 5")
 
     train_attributes = train_job.attributes.dict()
-
-    db_train_job = models.Job(job_type=models.JobTypes.train.value, **train_job.dict())
-    db.add(db_train_job)
-
-    model.last_used = datetime.now()
     model.status = models.ModelStates.training.value
     model.train_attributes = train_attributes
-    db.add(model)
-    db.flush()
-
-    enqueue_job(db_train_job, enqueueing_func)
-
-    db.commit()
-    db.refresh(db_train_job)
-    return db_train_job
+    return _create_base_job(db, model, enqueueing_func, train_job)
 
 
-def create_inference_job(db: Session, model: models.Model, enqueueing_func: callable, inference_job: schemas.InferenceJobCreate):
+def create_inference_job(db: Session, model: models.Model, enqueueing_func: callable, inference_job: schemas.JobCreate):
     if model.status != models.ModelStates.trained.value:
         raise HTTPException(status_code=400, detail=f"Model {inference_job.model_id} has not been trained")
-
-    db_inference_job = models.Job(job_type=models.JobTypes.inference.value, **inference_job.dict())
-    db.add(db_inference_job)
-
-    model.last_used = db_inference_job.date_created
-    db.add(model)
-    db.flush()
-
-    enqueue_job(db_inference_job, enqueueing_func)
-
-    db.commit()
-    db.refresh(db_inference_job)
-    return db_inference_job
+    return _create_base_job(db, model, enqueueing_func, inference_job)

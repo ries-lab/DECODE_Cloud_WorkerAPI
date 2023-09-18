@@ -13,8 +13,6 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI()
 
 app.include_router(models.router)
-app.include_router(train.router)
-app.include_router(predict.router)
 app.include_router(files.router)
 app.include_router(token.router)
 app.include_router(user.router)
