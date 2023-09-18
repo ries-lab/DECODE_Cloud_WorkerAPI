@@ -30,7 +30,7 @@ except:
 filesystem = os.environ.get("FILESYSTEM")
 s3_bucket = os.environ.get("S3_BUCKET")
 user_data_root_path = os.environ.get("USER_DATA_ROOT_PATH")
-models_root_path = os.environ.get("MODELS_ROOT_PATH")
+outputs_root_path = os.environ.get("OUTPUTS_ROOT_PATH")
 
 version_config_file = os.environ.get("VERSION_CONFIG_FILE", os.path.join(os.path.dirname(__file__), "..", "version_config.yaml"))
 

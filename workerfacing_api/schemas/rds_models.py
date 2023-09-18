@@ -27,7 +27,7 @@ class QueuedJob(Base):
     num_retries = Column(Integer, default=0)
 
     job = Column(JSON, nullable=False)
-    path_upload = Column(String, nullable=False)
+    paths_upload = Column(JSON, nullable=False)
 
     # filters (see HardwareSpecs)
     environment = Column(String)

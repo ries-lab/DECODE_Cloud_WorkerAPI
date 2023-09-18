@@ -4,7 +4,7 @@ import os
 
 filesystem = os.environ.get("FILESYSTEM")  # filesystem
 s3_bucket = os.environ.get("S3_BUCKET")
-models_root_path = os.environ.get("MODELS_ROOT_PATH")
+outputs_root_path = os.environ.get("OUTPUTS_ROOT_PATH")
 user_data_root_path = os.environ.get("USER_DATA_ROOT_PATH")
 
 max_retries = int(os.environ.get("MAX_RETRIES"))

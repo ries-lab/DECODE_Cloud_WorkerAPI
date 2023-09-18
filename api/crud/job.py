@@ -4,13 +4,13 @@ from sqlalchemy.orm import Session, joinedload
 
 import api.models as models
 import api.schemas as schemas
-from api.core.filesystem import get_user_filesystem, get_user_modelsystem
+from api.core.filesystem import get_user_filesystem, get_user_outputs_filesystem
 import api.settings as settings
 
 
 def enqueue_job(job: models.Job, enqueueing_func: callable):
     user_fs = get_user_filesystem(user_id=job.model.user_id)
-    model_fs = get_user_modelsystem(user_id=job.model.user_id)
+    outputs_fs = get_user_outputs_filesystem(user_id=job.model.user_id)
 
     version_config = settings.version_config[job.model.decode_version]['entrypoints'][job.job_type]
     
@@ -26,23 +26,32 @@ def enqueue_job(job: models.Job, enqueueing_func: callable):
     # Handler parameters
     handler_config = version_config["handler"]
 
-    def prepare_files(root_in, root_out):
+    def prepare_files(root_in, root_out, fs):
         root_in_dir = root_in + ("/" if not root_in[-1] == "/" else "")
         out_files = {}
-        if not user_fs.isdir(root_in_dir):
+        if not fs.isdir(root_in_dir):
             in_files = [root_in]
         else:
-            in_files = [f.path for f in user_fs.list_directory(root_in_dir, dirs=False, recursive=True)]
+            in_files = [f.path for f in fs.list_directory(root_in_dir, dirs=False, recursive=True)]
         for in_f in in_files:
-            out_files[f"{root_out}/{os.path.relpath(in_f, root_in)}"] = user_fs.full_path_uri(in_f)
+            out_files[f"{root_out}/{os.path.relpath(in_f, root_in)}"] = fs.full_path_uri(in_f)
         return out_files
 
     config_path = f"config/{job.attributes['config_id']}"
-    data_paths = [f"data/{data_id}" for data_id in job.attributes['data_ids']]
+    data_paths = [f"data/{data_id}" for data_id in job.attributes["data_ids"]]
     _validate_files(user_fs, data_paths + [config_path])
-    files_down = prepare_files(config_path, "config")
+    files_down = prepare_files(config_path, "config", user_fs)
     for data_path in data_paths:
-        files_down.update(prepare_files(data_path, "data"))
+        files_down.update(prepare_files(data_path, "data", user_fs))
+    
+    path_model = f"output/train/{job.model.model_path}"
+    if job.job_type == models.JobTypes.train:
+        rel_path_out = path_model
+    elif job.job_type == models.JobTypes.inference:
+        rel_path_out = f"output/fits/{job.id}"
+        files_down.update(prepare_files(path_model, "model", outputs_fs))
+    else:
+        raise ValueError("Only jobs of types 'train' and 'inference' are supported.")
 
     handler = schemas.HandlerSpecs(
         image_url=handler_config["image_url"],
@@ -53,6 +62,11 @@ def enqueue_job(job: models.Job, enqueueing_func: callable):
 
     meta = schemas.MetaSpecs(job_id=job.id, date_created=job.date_created)
 
+    paths_upload = {
+        "output": outputs_fs.full_path_uri(rel_path_out),
+        "log": outputs_fs.full_path_uri(f"log/{job.id}"),
+    }
+
     job_specs = schemas.JobSpecs(app=app, handler=handler, meta=meta)
     queue_item = schemas.QueueJob(
         job=job_specs,
@@ -60,7 +74,7 @@ def enqueue_job(job: models.Job, enqueueing_func: callable):
         hardware=job.hardware,
         group=None,  #TODO
         priority=job.priority or (1 if job.job_type == models.JobTypes.train else 5),
-        path_upload=model_fs.full_path_uri(job.model.model_path),
+        paths_upload=paths_upload,
     )
     enqueueing_func(queue_item)
 

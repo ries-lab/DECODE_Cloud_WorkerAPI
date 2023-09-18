@@ -68,10 +68,15 @@ class JobSpecs(BaseModel):
     meta: MetaSpecs
 
 
+class PathsUploadSpecs(BaseModel):
+    output: str
+    log: str
+
+
 class QueueJob(BaseModel):
     job: JobSpecs
     environment: EnvironmentTypes | None = None
     hardware: HardwareSpecs
     group: str | None = None
     priority: int | None = None
-    path_upload: str
+    paths_upload: PathsUploadSpecs

@@ -298,7 +298,7 @@ class RDSJobQueue(JobQueue):
             hw_specs = item.get('hardware') or {}
             session.add(QueuedJob(
                 job=item["job"],
-                path_upload=item["path_upload"],
+                paths_upload=item["paths_upload"],
                 environment=environment,
                 # None values in the resource requirements will make any puller match
                 cpu_cores=hw_specs.get('cpu_cores'),
