@@ -26,7 +26,6 @@ class QueuedJob(Base):
     status = Column(String, Enum(JobStates), nullable=False, default=JobStates.queued.value)
     num_retries = Column(Integer, default=0)
 
-    job_id = Column(Integer, nullable=False)
     job = Column(JSON, nullable=False)
     path_upload = Column(String, nullable=False)
 

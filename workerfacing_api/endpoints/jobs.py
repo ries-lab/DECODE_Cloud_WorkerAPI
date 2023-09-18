@@ -3,13 +3,13 @@ from fastapi.encoders import jsonable_encoder
 from workerfacing_api.core.queue import JobQueue
 from workerfacing_api.queue import get_queue
 from workerfacing_api.schemas.rds_models import JobStates
-from workerfacing_api.schemas.queue_jobs import JobSpecsQueue, QueueJob
+from workerfacing_api.schemas.queue_jobs import QueueJob, JobSpecs
 
 
 router = APIRouter()
 
 
-@router.get("/jobs", response_model=list[JobSpecsQueue])
+@router.get("/jobs", response_model=dict[int, JobSpecs])
 async def get_jobs(
     hostname: str,
     cpu_cores: int,
@@ -23,7 +23,7 @@ async def get_jobs(
     older_than: int | None = None,
     queue: JobQueue = Depends(get_queue),
 ):
-    jobs = []
+    jobs = {}
     for _ in range(limit):
         job = queue.dequeue(
             hostname=hostname,
@@ -37,9 +37,9 @@ async def get_jobs(
             older_than=older_than or 0,
         )
         if job:
-            job = JobSpecsQueue(**job)
-            jobs.append(job)
-            queue.update_job_status(job.job_id, status=JobStates.running)
+            job_id = job.pop("job_id")
+            jobs.update({job_id: JobSpecs(**job)})
+            queue.update_job_status(job_id, status=JobStates.running)
         else:
             break
     return jobs

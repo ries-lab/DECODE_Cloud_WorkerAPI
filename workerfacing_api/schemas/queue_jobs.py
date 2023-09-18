@@ -3,10 +3,6 @@ import enum
 from pydantic import BaseModel
 
 
-#TODO: this is basically a copy-paste from user-facing API
-# not imported to leave the two independently usable
-# but beware of the tight coupling
-
 class EnvironmentTypes(enum.Enum):
     cloud = "cloud"
     local = "local"
@@ -21,26 +17,35 @@ class HardwareSpecs(BaseModel):
     gpu_mem: int | None = None
 
 
-class JobSpecs(BaseModel):
+class MetaSpecs(BaseModel):
+    job_id: int
     date_created: datetime.datetime
+    class Config:
+        extra = "allow"
+
+
+class AppSpecs(BaseModel):
+    cmd: list[str] | None = None
+    env: dict[str, str] | None = None
+
+
+class HandlerSpecs(BaseModel):
     image_url: str
-    command: str | list[str] | None
-    job_env: dict[str, str] | None
-    files: dict[str, str]
+    aws_job_def: str | None = None
+    files_down: dict[str, str] | None = None
+    files_up: list[str] | None = None
+
+
+class JobSpecs(BaseModel):
+    app: AppSpecs
+    handler: HandlerSpecs
+    meta: MetaSpecs
 
 
 class QueueJob(BaseModel):
-    job_id: str
     job: JobSpecs
     environment: EnvironmentTypes | None = None
     hardware: HardwareSpecs
     group: str | None = None
     priority: int | None = None
     path_upload: str
-
-    class Config:
-        orm_mode = True
-
-
-class JobSpecsQueue(JobSpecs):
-    job_id: str  # added to user-facing API model, to trace back to DB

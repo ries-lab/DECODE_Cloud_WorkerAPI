@@ -17,7 +17,7 @@ class FileSystem(abc.ABC):
     def get_file(self, path: str):
         raise NotImplementedError()
 
-    def get_file_url(self, path: str, request_url: str):
+    def get_file_url(self, path: str, request_url: str, url_endpoint: str, files_endpoint: str):
         raise NotImplementedError()
 
     def post_file(self, file, path: str):
@@ -75,7 +75,7 @@ class S3Filesystem(FileSystem):
         assert bucket == self.bucket
         return bucket, path
 
-    def get_file_url(self, path: str, request_url: str):
+    def get_file_url(self, path: str, request_url: str, url_endpoint: str, files_endpoint: str):
         try:
             bucket, path = self._get_bucket_path(path)
             resp = self.s3_client.generate_presigned_url(

@@ -65,14 +65,13 @@ class JobQueue(ABC):
         if item:
             # check "old enough"
             time_now = datetime.datetime.utcnow()
-            item_age = time_now - datetime.datetime.fromisoformat(item['date_created'])
+            item_age = time_now - datetime.datetime.fromisoformat(item['meta']['date_created'])
             if item_age > datetime.timedelta(seconds=older_than):
                 # remove from queue and return
                 # concurrency handled by the fact that if the object cannot be popped
                 # (was already popped by another worker), the peek will return None
                 # and not the same object
                 self.pop(environment=environment, receipt_handle=receipt_handle)
-                item["queue_id"] = receipt_handle
                 return item
         return None
     
@@ -298,7 +297,6 @@ class RDSJobQueue(JobQueue):
         with Session(self.engine) as session:
             hw_specs = item.get('hardware') or {}
             session.add(QueuedJob(
-                job_id=item["job_id"],
                 job=item["job"],
                 path_upload=item["path_upload"],
                 environment=environment,
@@ -365,7 +363,7 @@ class RDSJobQueue(JobQueue):
                 job.workers += worker_str
                 session.add(job)
                 session.commit()
-                return job.job, str(job.id)
+                return {"job_id": job.id, **job.job}, str(job.id)
         return None, None
 
     def pop(self, environment: str, receipt_handle: str):
@@ -389,7 +387,7 @@ class RDSJobQueue(JobQueue):
         job.last_updated = datetime.datetime.utcnow()
         session.add(job)
         session.commit()
-        update_job(job.job_id, status)
+        update_job(job.job["meta"]["job_id"], status)
     
     def update_job_status(self, job_id: int, status: JobStates):
         with Session(self.engine) as session:

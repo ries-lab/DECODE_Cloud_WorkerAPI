@@ -1,6 +1,6 @@
 import os
 from datetime import datetime
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 
 import api.models as models
@@ -14,6 +14,18 @@ def enqueue_job(job: models.Job, enqueueing_func: callable):
     model_fs = get_user_modelsystem(user_id=job.model.user_id)
 
     version_config = settings.version_config[job.model.decode_version]['entrypoints'][job.job_type]
+    
+    # App parameters
+    app_config = version_config["app"]
+    if not all(k in app_config["env"] for k in job.attributes["env_vars"].keys()):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"The environment variables can only be {app_config['env']}",
+        )
+    app = schemas.AppSpecs(cmd=app_config["cmd"], env=job.attributes["env_vars"])
+
+    # Handler parameters
+    handler_config = version_config["handler"]
 
     def prepare_files(root_in, root_out):
         root_in_dir = root_in + ("/" if not root_in[-1] == "/" else "")
@@ -29,19 +41,21 @@ def enqueue_job(job: models.Job, enqueueing_func: callable):
     config_path = f"config/{job.attributes['config_id']}"
     data_paths = [f"data/{data_id}" for data_id in job.attributes['data_ids']]
     _validate_files(user_fs, data_paths + [config_path])
-    files = prepare_files(config_path, "/data/config")
+    files_down = prepare_files(config_path, "config")
     for data_path in data_paths:
-        files.update(prepare_files(data_path, "/data/data"))
+        files_down.update(prepare_files(data_path, "data"))
 
-    job_specs = schemas.JobSpecs(
-        date_created=job.date_created,
-        image_url=version_config["image_url"],
-        command=version_config["command"],
-        job_env={},
-        files=files,
+    handler = schemas.HandlerSpecs(
+        image_url=handler_config["image_url"],
+        aws_job_def=handler_config["aws_job_def"],
+        files_down=files_down,
+        files_up=handler_config["files_up"],
     )
+
+    meta = schemas.MetaSpecs(job_id=job.id, date_created=job.date_created)
+
+    job_specs = schemas.JobSpecs(app=app, handler=handler, meta=meta)
     queue_item = schemas.QueueJob(
-        job_id=job.id,
         job=job_specs,
         environment=job.environment if job.environment else models.EnvironmentTypes.any,
         hardware=job.hardware,
