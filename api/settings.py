@@ -32,17 +32,17 @@ s3_bucket = os.environ.get("S3_BUCKET")
 user_data_root_path = os.environ.get("USER_DATA_ROOT_PATH")
 outputs_root_path = os.environ.get("OUTPUTS_ROOT_PATH")
 
-version_config_file = os.environ.get("VERSION_CONFIG_FILE", os.path.join(os.path.dirname(__file__), "..", "version_config.yaml"))
+software_config_file = os.environ.get("SOFTWARE_CONFIG_FILE", os.path.join(os.path.dirname(__file__), "..", "software_config.yaml"))
 
-class JITVersion(object):
+class JITConfig(object):
     def __getattribute__(self, __name: str) -> Any:
-        with open(version_config_file) as f:
-            versions = yaml.safe_load(f)['versions']
-        if __name == 'versions':
-            return versions
-        return getattr(versions, __name)
+        with open(software_config_file) as f:
+            config = yaml.safe_load(f)
+        if __name == 'config':
+            return config
+        return getattr(config, __name)
     
     def __getitem__(self, item):
-        return self.versions[item]
+        return self.config[item]
 
-version_config = JITVersion()
+software_config = JITConfig()

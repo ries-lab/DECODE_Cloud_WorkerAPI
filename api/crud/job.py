@@ -12,19 +12,18 @@ def enqueue_job(job: models.Job, enqueueing_func: callable):
     user_fs = get_user_filesystem(user_id=job.model.user_id)
     outputs_fs = get_user_outputs_filesystem(user_id=job.model.user_id)
 
-    version_config = settings.version_config[job.model.decode_version]['entrypoints'][job.job_type]
+    job_config = settings.software_config[job.model.software][job.model.version]['entrypoints'][job.job_type]
     
     # App parameters
-    app_config = version_config["app"]
-    if not all(k in app_config["env"] for k in job.attributes["env_vars"].keys()):
+    if not all(k in job_config["env"] for k in job.attributes["env_vars"].keys()):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"The environment variables can only be {app_config['env']}",
+            detail=f"The environment variables can only be {job_config['env']}",
         )
-    app = schemas.AppSpecs(cmd=app_config["cmd"], env=job.attributes["env_vars"])
+    app = schemas.AppSpecs(cmd=job_config["cmd"], env=job.attributes["env_vars"])
 
     # Handler parameters
-    handler_config = version_config["handler"]
+    handler_config = job_config["handler"]
 
     def prepare_files(root_in, root_out, fs):
         root_in_dir = root_in + ("/" if not root_in[-1] == "/" else "")
