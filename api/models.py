@@ -55,7 +55,7 @@ class Job(Base):
     __tablename__ = "jobs"
 
     id = Column(Integer, primary_key=True, index=True)
-    job_type = Column(String, Enum(JobTypes), nullable=False)
+    job_type = Column(Enum(JobTypes), nullable=False)
     date_created = Column(DateTime, default=datetime.datetime.utcnow)
     date_started = Column(DateTime)
     date_finished = Column(DateTime)

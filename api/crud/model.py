@@ -25,7 +25,7 @@ def create_model(db: Session, user_id: str, model: schemas.ModelCreate):
             status_code=status.HTTP_409_CONFLICT,
             detail="Model name must be unique",
         )
-    db_model.model_path = model.name
+    db_model.model_path = f"output/{model.name}"
     db.add(db_model)
     db.commit()
     db.refresh(db_model)

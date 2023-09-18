@@ -133,4 +133,4 @@ dmypy.json
 
 # Local filesystem (default)
 user_data/
-model_data/
+output_data/

@@ -12,15 +12,16 @@ def enqueue_job(job: models.Job, enqueueing_func: callable):
     user_fs = get_user_filesystem(user_id=job.model.user_id)
     outputs_fs = get_user_outputs_filesystem(user_id=job.model.user_id)
 
-    job_config = settings.software_config[job.model.software][job.model.version]['entrypoints'][job.job_type]
+    job_config = settings.software_config[job.model.software][job.model.version]['entrypoints'][job.job_type.value]
     
     # App parameters
-    if not all(k in job_config["env"] for k in job.attributes["env_vars"].keys()):
+    app_config = job_config["app"]
+    if not all(k in app_config["env"] for k in job.attributes["env_vars"].keys()):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"The environment variables can only be {job_config['env']}",
         )
-    app = schemas.AppSpecs(cmd=job_config["cmd"], env=job.attributes["env_vars"])
+    app = schemas.AppSpecs(cmd=app_config["cmd"], env=job.attributes["env_vars"])
 
     # Handler parameters
     handler_config = job_config["handler"]
@@ -43,12 +44,12 @@ def enqueue_job(job: models.Job, enqueueing_func: callable):
     for data_path in data_paths:
         files_down.update(prepare_files(data_path, "data", user_fs))
     
-    path_model = f"output/train/{job.model.model_path}"
+    model_path = job.model.model_path + "/model"
     if job.job_type == models.JobTypes.train:
-        rel_path_out = path_model
+        rel_path_out = model_path
     elif job.job_type == models.JobTypes.inference:
-        rel_path_out = f"output/fits/{job.id}"
-        files_down.update(prepare_files(path_model, "model", outputs_fs))
+        rel_path_out = job.model.model_path + f"/fits/{job.id}"
+        files_down.update(prepare_files(model_path, "model", outputs_fs))
     else:
         raise ValueError("Only jobs of types 'train' and 'inference' are supported.")
 
@@ -109,7 +110,7 @@ def create_train_job(db: Session, model: models.Model, enqueueing_func: callable
         raise HTTPException(status_code=400, detail=f"Model {train_job.model_id} is already trained")
     if model.status == models.ModelStates.training.value:
         raise HTTPException(status_code=400, detail=f"Model {train_job.model_id} is already training")
-    if train_job.priority < 1 or train_job.priority > 5:
+    if train_job.priority < 0 or train_job.priority > 5:
         raise HTTPException(status_code=400, detail="Priority must be between 1 and 5")
 
     train_attributes = train_job.attributes.dict()

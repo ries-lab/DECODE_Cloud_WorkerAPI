@@ -4,7 +4,7 @@ dotenv.load_dotenv()
 from fastapi import FastAPI
 from .database import engine, Base
 
-from api.endpoints import models, train, predict, files, token, user, jobs, job_update
+from api.endpoints import models, files, token, user, jobs, job_update
 from api.exceptions import register_exception_handlers
 
 

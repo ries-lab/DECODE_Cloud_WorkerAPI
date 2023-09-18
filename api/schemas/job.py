@@ -40,7 +40,8 @@ class JobCreate(JobBase):
 
 
 class Job(JobBase, JobReadBase):
-    pass
+    class Config:
+        orm_mode = True
 
 
 class MetaSpecs(BaseModel):
