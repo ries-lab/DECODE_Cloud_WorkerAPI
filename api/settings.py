@@ -3,6 +3,9 @@ import os
 from typing import Any
 import yaml
 
+
+prod = bool(int(os.environ.get("PROD", "0")))
+
 database_url = os.environ.get("DATABASE_URL", "sqlite:///./sql_app.db")
 if "DATABASE_SECRET" in os.environ:
     database_secret = os.environ["DATABASE_SECRET"]
