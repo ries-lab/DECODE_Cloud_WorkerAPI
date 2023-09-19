@@ -184,17 +184,10 @@ class S3Filesystem(FileSystem):
         full_path = self.full_path(path)
         paginator = self.s3_client.get_paginator('list_objects_v2')
         operation_parameters = {'Bucket': self.bucket, 'Prefix': full_path}
-        if not recursive:
-            operation_parameters['Delimiter'] = '/'
+        operation_parameters['Delimiter'] = '/'
         page_iterator = paginator.paginate(**operation_parameters)
+    
         for page in page_iterator:
-            if dirs:
-                for key in page.get('CommonPrefixes', []):
-                    yield FileInfo(
-                        path=key['Prefix'][len(str(self.root_path))+1:],
-                        type=FileTypes.directory,
-                        size=''
-                    )
             for key in page.get('Contents', []):
                 if key['Key'] == full_path:
                     continue
@@ -203,6 +196,13 @@ class S3Filesystem(FileSystem):
                     type=FileTypes.file,
                     size=humanize.naturalsize(key['Size'])
                 )
+            for key in page.get('CommonPrefixes', []):
+                dir_path = key['Prefix'][len(str(self.root_path))+1:]
+                if dirs:
+                    yield FileInfo(path=dir_path, type=FileTypes.directory, size='')
+                if recursive:
+                    for ret in self._directory_contents(dir_path, dirs=dirs, recursive=recursive):
+                        yield ret
 
     def get_file_info(self, path: str):
         metadata = self.s3_client.head_object(Bucket=self.bucket, Key=self.full_path(path))
