@@ -4,13 +4,12 @@ from sqlalchemy.orm import Session, joinedload
 
 import api.models as models
 import api.schemas as schemas
-from api.core.filesystem import get_user_filesystem, get_user_outputs_filesystem
+from api.core.filesystem import get_user_filesystem
 import api.settings as settings
 
 
 def enqueue_job(job: models.Job, enqueueing_func: callable):
     user_fs = get_user_filesystem(user_id=job.model.user_id)
-    outputs_fs = get_user_outputs_filesystem(user_id=job.model.user_id)
 
     job_config = settings.application_config[job.model.application][job.model.version]['entrypoints'][job.job_type.value]
     
@@ -49,7 +48,7 @@ def enqueue_job(job: models.Job, enqueueing_func: callable):
         rel_path_out = model_path
     elif job.job_type == models.JobTypes.inference:
         rel_path_out = job.model.model_path + f"/fits/{job.id}"
-        files_down.update(prepare_files(model_path, "model", outputs_fs))
+        files_down.update(prepare_files(model_path, "model", user_fs))
     else:
         raise ValueError("Only jobs of types 'train' and 'inference' are supported.")
 
@@ -63,8 +62,8 @@ def enqueue_job(job: models.Job, enqueueing_func: callable):
     meta = schemas.MetaSpecs(job_id=job.id, date_created=job.date_created)
 
     paths_upload = {
-        "output": outputs_fs.full_path_uri(rel_path_out),
-        "log": outputs_fs.full_path_uri(f"log/{job.id}"),
+        "output": user_fs.full_path_uri(rel_path_out),
+        "log": user_fs.full_path_uri(f"log/{job.id}"),
     }
 
     job_specs = schemas.JobSpecs(app=app, handler=handler, meta=meta)

@@ -4,7 +4,7 @@ from fastapi import HTTPException, status
 
 import api.models as models
 import api.schemas as schemas
-from api.core.filesystem import get_user_outputs_filesystem
+from api.core.filesystem import get_user_filesystem
 
 
 def get_models(db: Session, user_id: str, skip: int = 0, limit: int = 100):
@@ -36,7 +36,7 @@ def delete_model(db: Session, user_id: str, model_id: int):
     db_model = db.query(models.Model).where(models.Model.id == model_id).first()
     if not db_model or db_model.user_id != user_id:
         return None
-    filesystem = get_user_outputs_filesystem(user_id)
+    filesystem = get_user_filesystem(user_id)
     filesystem.delete(db_model.model_path)
     db.delete(db_model)
     db.commit()

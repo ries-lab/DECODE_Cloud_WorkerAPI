@@ -282,8 +282,3 @@ def get_filesystem_with_root(root_path: str):
 def get_user_filesystem(user_id: str):
     """ Get the filesystem to use for a user. """
     return get_filesystem_with_root(str(Path(settings.user_data_root_path) / user_id))
-
-
-def get_user_outputs_filesystem(user_id: str):
-    """ Get the outputs filesystem to use for a user. """
-    return get_filesystem_with_root(str(Path(settings.outputs_root_path) / user_id))

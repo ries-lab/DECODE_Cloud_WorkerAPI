@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request
 import api.crud as crud
 import api.database as database
 import api.schemas as schemas
-from api.dependencies import current_user_global_dep, outputs_filesystem_dep
+from api.dependencies import current_user_global_dep, filesystem_dep
 
 
 router = APIRouter(dependencies=[Depends(current_user_global_dep)])
@@ -39,7 +39,7 @@ def delete_model(request: Request, model_id: int, db: Session = Depends(database
 
 
 @router.get("/files/model/{model_id}", status_code=status.HTTP_200_OK)
-def download_model(model_id: str, filesystem=Depends(outputs_filesystem_dep), db: Session = Depends(database.get_db)):
+def download_model(model_id: str, filesystem=Depends(filesystem_dep), db: Session = Depends(database.get_db)):
     model_path = crud.model.get_model(db, model_id).model_path + "/model/"
     if not model_path:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Model does not exist")

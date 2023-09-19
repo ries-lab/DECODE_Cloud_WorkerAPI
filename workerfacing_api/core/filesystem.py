@@ -101,6 +101,6 @@ async def filesystem_dep():
         s3_bucket = settings.s3_bucket
         return S3Filesystem(s3_client, s3_bucket)
     elif settings.filesystem == 'local':
-        return LocalFilesystem(settings.user_data_root_path, settings.outputs_root_path)
+        return LocalFilesystem(settings.user_data_root_path, settings.user_data_root_path)
     else:
         raise ValueError('Invalid filesystem setting')
