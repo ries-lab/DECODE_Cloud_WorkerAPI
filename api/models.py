@@ -43,7 +43,7 @@ class Model(Base):
     date_trained = Column(DateTime)
     last_used = Column(DateTime)
     model_path = Column(String)
-    software = Column(String, nullable=False)
+    application = Column(String, nullable=False)
     version = Column(String, nullable=True)
     train_attributes = Column(JSON, nullable=True)
     user_id = Column(String, nullable=False)

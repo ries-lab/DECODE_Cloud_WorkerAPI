@@ -12,7 +12,7 @@ def enqueue_job(job: models.Job, enqueueing_func: callable):
     user_fs = get_user_filesystem(user_id=job.model.user_id)
     outputs_fs = get_user_outputs_filesystem(user_id=job.model.user_id)
 
-    job_config = settings.software_config[job.model.software][job.model.version]['entrypoints'][job.job_type.value]
+    job_config = settings.application_config[job.model.application][job.model.version]['entrypoints'][job.job_type.value]
     
     # App parameters
     app_config = job_config["app"]

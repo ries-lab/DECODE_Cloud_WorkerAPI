@@ -7,20 +7,20 @@ from api import settings
 
 class ModelBase(BaseModel):
     name: str
-    software: str
+    application: str
     version: str
 
-    @validator('software')
-    def software_check(cls, v, values):
-        allowed = list(settings.software_config.keys())
+    @validator('application')
+    def application_check(cls, v, values):
+        allowed = list(settings.application_config.keys())
         if v not in allowed:
-            raise ValueError(f"Software must be one of {allowed}, not {v}.")
+            raise ValueError(f"Application must be one of {allowed}, not {v}.")
         return v
 
     @validator('version')
     def version_check(cls, v, values):
-        # no need to check software, since validation done in order of definition
-        allowed = list(settings.software_config[values["software"]].keys())
+        # no need to check application, since validation done in order of definition
+        allowed = list(settings.application_config[values["application"]].keys())
         if v not in allowed:
             raise ValueError(f"Version must be one of {allowed}, not {v}.")
         return v

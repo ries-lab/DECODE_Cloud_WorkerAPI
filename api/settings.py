@@ -32,11 +32,11 @@ s3_bucket = os.environ.get("S3_BUCKET")
 user_data_root_path = os.environ.get("USER_DATA_ROOT_PATH")
 outputs_root_path = os.environ.get("OUTPUTS_ROOT_PATH")
 
-software_config_file = os.environ.get("SOFTWARE_CONFIG_FILE", os.path.join(os.path.dirname(__file__), "..", "software_config.yaml"))
+application_config_file = os.environ.get("APPLICATION_CONFIG_FILE", os.path.join(os.path.dirname(__file__), "..", "application_config.yaml"))
 
 class JITConfig(object):
     def __getattribute__(self, __name: str) -> Any:
-        with open(software_config_file) as f:
+        with open(application_config_file) as f:
             config = yaml.safe_load(f)
         if __name == 'config':
             return config
@@ -45,4 +45,4 @@ class JITConfig(object):
     def __getitem__(self, item):
         return self.config[item]
 
-software_config = JITConfig()
+application_config = JITConfig()

@@ -17,7 +17,7 @@ def get_model(db: Session, model_id: int):
 
 def create_model(db: Session, user_id: str, model: schemas.ModelCreate):
     try:
-        db_model = models.Model(name=model.name, software=model.software, version=model.version, user_id=user_id)
+        db_model = models.Model(name=model.name, application=model.application, version=model.version, user_id=user_id)
         db.add(db_model)
         db.flush()
     except IntegrityError:

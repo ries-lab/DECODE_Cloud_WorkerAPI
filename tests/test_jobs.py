@@ -48,14 +48,14 @@ client = TestClient(app)
 
 @pytest.fixture
 def model_untrained(queue):
-    response = client.post("/models", json={"name": "test_untrained", "software": "decode", "version": "v0.10.1"})
+    response = client.post("/models", json={"name": "test_untrained", "application": "decode", "version": "v0.10.1"})
     model_id = response.json()["id"]
     return model_id
 
 
 @pytest.fixture
 def model_trained(db, queue):
-    response = client.post("/models", json={"name": "test_trained", "software": "decode", "version": "v0.10.1"})
+    response = client.post("/models", json={"name": "test_trained", "application": "decode", "version": "v0.10.1"})
     model_id = response.json()["id"]
     update_model_state(db, get_model(db, model_id), ModelStates.trained)
     return model_id
@@ -63,7 +63,7 @@ def model_trained(db, queue):
 
 @pytest.fixture
 def model_training(db, queue):
-    response = client.post("/models", json={"name": "test_training", "software": "decode", "version": "v0.10.1"})
+    response = client.post("/models", json={"name": "test_training", "application": "decode", "version": "v0.10.1"})
     model_id = response.json()["id"]
     update_model_state(db, get_model(db, model_id), ModelStates.training)
     return model_id
