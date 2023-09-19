@@ -1,8 +1,6 @@
 from fastapi import APIRouter, HTTPException, UploadFile, status, Depends
-from sqlalchemy.orm import Session
 
 import api.schemas as schemas
-from api import database, crud
 from api.dependencies import current_user_global_dep, filesystem_dep
 
 
@@ -32,28 +30,21 @@ def upload_file_data(data_id: str, file_path: str, file: UploadFile, filesystem=
     return upload_file(f"data/{data_id}/" + file_path, file, filesystem)
 
 
-def rename_file(file_path: str, file: schemas.FileUpdate, filesystem):
+@router.put("/files/{file_path:path}", response_model=schemas.File)
+def rename_file(file_path: str, file: schemas.FileUpdate, filesystem=Depends(filesystem_dep)):
     filesystem.rename(file_path, file.path)
     return filesystem.get_file_info(file.path)
-
-@router.put("/files/config/{config_id}/{file_path:path}", response_model=schemas.File)
-def rename_file_config(config_id: str, file_path: str, file: schemas.FileUpdate, filesystem=Depends(filesystem_dep)):
-    return rename_file(f"config/{config_id}/" + file_path, "config/" + file, filesystem)
-
-@router.patch("/files/config/{config_id}/{file_path:path}", response_model=schemas.File)
-def rename_file_config_patch(config_id: str, file_path: str, file: schemas.FileUpdate, filesystem=Depends(filesystem_dep)):
-    return rename_file(f"config/{config_id}/" + file_path, "config/" + file, filesystem)
-
-@router.put("/files/data/{data_id}/{file_path:path}", response_model=schemas.File)
-def rename_file_data(data_id: str, file_path: str, file: schemas.FileUpdate, filesystem=Depends(filesystem_dep)):
-    return rename_file(f"data/{data_id}/" + file_path, "data/" + file, filesystem)
-
-@router.patch("/files/data/{file_path:path}", response_model=schemas.File)
-def rename_file_data_patch(data_id: str, file_path: str, file: schemas.FileUpdate, filesystem=Depends(filesystem_dep)):
-    return rename_file(f"data/{data_id}/" + file_path, "data/" + file, filesystem)
 
 
 @router.delete("/files/{file_path:path}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_file(file_path: str, filesystem=Depends(filesystem_dep)):
     filesystem.delete(file_path)
     return {}
+
+
+@router.get("/downloads/{file_path:path}", status_code=status.HTTP_200_OK)
+def download_file(file_path: str, filesystem=Depends(filesystem_dep)):
+    ret = filesystem.download(file_path)
+    if not ret:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+    return ret

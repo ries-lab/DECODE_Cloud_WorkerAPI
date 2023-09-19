@@ -9,6 +9,12 @@ class EnvironmentTypes(enum.Enum):
     any = None
 
 
+class OutputEndpoints(enum.Enum):
+    output = "output"
+    log = "log"
+    artifact = "artifact"
+
+
 class HardwareSpecs(BaseModel):
     cpu_cores: int | None = None
     memory: int | None = None
@@ -33,7 +39,7 @@ class HandlerSpecs(BaseModel):
     image_url: str
     aws_job_def: str | None = None
     files_down: dict[str, str] | None = None
-    files_up: list[str] | None = None
+    files_up: dict[OutputEndpoints, str] | None = None
 
 
 class JobSpecs(BaseModel):
