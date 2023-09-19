@@ -7,14 +7,9 @@ from api.dependencies import current_user_global_dep, filesystem_dep
 router = APIRouter(dependencies=[Depends(current_user_global_dep)])
 
 
-@router.get("/files", response_model=list[schemas.File])
-def get_files(recursive: bool = False, filesystem=Depends(filesystem_dep)):
-    return filesystem.list_directory('', recursive=recursive)
-
-
-@router.get("/files/{file_path:path}", response_model=list[schemas.File])
-def get_files_from_path(file_path: str, recursive: bool = False, filesystem=Depends(filesystem_dep)):
-    return filesystem.list_directory(file_path, recursive=recursive)
+@router.get("/files/{base_path:path}", response_model=list[schemas.File])
+def list_files(base_path: str | None = None, show_dirs: bool = True, recursive: bool = False, filesystem=Depends(filesystem_dep)):
+    return filesystem.list_directory(base_path, dirs=show_dirs, recursive=recursive)
 
 
 def upload_file(file_path: str, file: UploadFile, filesystem):
