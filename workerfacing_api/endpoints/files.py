@@ -23,8 +23,9 @@ async def get_file_url(path: str, request: Request, filesystem=Depends(filesyste
 
 
 class UploadType(enum.Enum):
-    log = "log"
     output = "output"
+    log = "log"
+    artifact = "artifact"
 
 
 @router.post("/files/{job_id}/{path:path}", status_code=status.HTTP_201_CREATED)
