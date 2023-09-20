@@ -14,7 +14,7 @@ timeout_failure = int(os.environ.get("TIMEOUT_FAILURE"))
 retry_different = bool(int(os.environ.get("RETRY_DIFFERENT")))
 queue_db_url = os.environ.get("QUEUE_DB_URL")  # RDB queue
 
-if "QUEUE_DB_SECRET" in os.environ:
+if os.environ.get("QUEUE_DB_SECRET"):  # exists and not None
     queue_db_secret = os.environ["QUEUE_DB_SECRET"]
     try:
         queue_db_secret = json.loads(queue_db_secret)["password"]  # AWS Secrets Manager
