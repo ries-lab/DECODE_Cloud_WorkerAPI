@@ -6,7 +6,6 @@ import api.crud.job as job_crud
 import api.database as database
 from api.schemas.job_update import JobUpdate
 from api.dependencies import workerfacing_api_auth_dep
-from api.models import JobStates
 
 
 router = APIRouter(dependencies=[Depends(workerfacing_api_auth_dep)])

@@ -14,10 +14,11 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI()
 
 app.include_router(files.router)
-if settings.prod:
+app.include_router(jobs.router)
+if not settings.prod:
     app.include_router(user.router)
     app.include_router(token.router)
-app.include_router(jobs.router)
+# private endpoint for worker-facing API
 app.include_router(job_update.router)
 
 register_exception_handlers(app)

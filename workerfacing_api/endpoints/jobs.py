@@ -1,9 +1,8 @@
 from fastapi import APIRouter, Depends, Query, status
-from fastapi.encoders import jsonable_encoder
 from workerfacing_api.core.queue import JobQueue
-from workerfacing_api.queue import get_queue
+from workerfacing_api.dependencies import get_queue
 from workerfacing_api.schemas.rds_models import JobStates
-from workerfacing_api.schemas.queue_jobs import QueueJob, JobSpecs
+from workerfacing_api.schemas.queue_jobs import JobSpecs
 
 
 router = APIRouter()
@@ -43,12 +42,6 @@ async def get_jobs(
         else:
             break
     return jobs
-
-
-@router.post("/jobs")
-async def post_job(job: QueueJob, queue: JobQueue = Depends(get_queue)):
-    queue.enqueue(environment=job.environment.value, item=jsonable_encoder(job))
-    return job
 
 
 @router.get("/jobs/{job_id}/status")

@@ -3,9 +3,8 @@ import enum
 import os
 from fastapi import APIRouter, Depends, File, Request, status, UploadFile
 
-from workerfacing_api.core.filesystem import filesystem_dep
 from workerfacing_api.core.queue import JobQueue
-from workerfacing_api.queue import get_queue
+from workerfacing_api.dependencies import filesystem_dep, get_queue
 
 
 router = APIRouter()
@@ -29,7 +28,14 @@ class UploadType(enum.Enum):
 
 
 @router.post("/files/{job_id}/{path:path}", status_code=status.HTTP_201_CREATED)
-async def post_file(job_id: int, type: UploadType, path: str, file: UploadFile = File(...), filesystem=Depends(filesystem_dep), queue: JobQueue = Depends(get_queue)):
+async def post_file(
+    job_id: int,
+    type: UploadType,
+    path: str,
+    file: UploadFile = File(...),
+    filesystem=Depends(filesystem_dep),
+    queue: JobQueue = Depends(get_queue),
+):
     job = queue.get_job(job_id)
     path = os.path.join(job.paths_upload[type.value], path)  # not pathlib.Path since it does s3://x => s3:/x
     return filesystem.post_file(file, path)

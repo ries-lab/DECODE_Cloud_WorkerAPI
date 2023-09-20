@@ -93,14 +93,3 @@ class S3Filesystem(FileSystem):
     def post_file(self, file, path: str):
         bucket, path = self._get_bucket_path(path)
         self.s3_client.upload_fileobj(file.file, bucket, path)
-
-
-async def filesystem_dep():
-    if settings.filesystem == 's3':
-        s3_client = boto3.client('s3')
-        s3_bucket = settings.s3_bucket
-        return S3Filesystem(s3_client, s3_bucket)
-    elif settings.filesystem == 'local':
-        return LocalFilesystem(settings.user_data_root_path, settings.user_data_root_path)
-    else:
-        raise ValueError('Invalid filesystem setting')
