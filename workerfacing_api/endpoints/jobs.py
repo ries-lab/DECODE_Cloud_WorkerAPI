@@ -13,7 +13,7 @@ async def get_jobs(
     hostname: str,
     cpu_cores: int,
     memory: int,
-    environment: str | None = None,
+    environment: str,
     gpu_model: str | None = None,
     gpu_archi: str | None = None,
     gpu_mem: int | None = None,
