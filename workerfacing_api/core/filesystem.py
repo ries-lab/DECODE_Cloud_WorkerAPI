@@ -76,19 +76,14 @@ class S3Filesystem(FileSystem):
         return bucket, path
 
     def get_file_url(self, path: str, request_url: str, url_endpoint: str, files_endpoint: str):
-        try:
-            bucket, path = self._get_bucket_path(path)
-            resp = self.s3_client.generate_presigned_url(
-                "get_object",
-                Params={"Bucket": bucket, "Key": path},
-                ExpiresIn=60*10,
-            )
-            return resp
-        except:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Wrong s3 url",
-            )
+        bucket, path = self._get_bucket_path(path)
+        resp = self.s3_client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": bucket, "Key": path},
+            ExpiresIn=60*10,
+        )
+        if not resp:
+            return HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
     def post_file(self, file, path: str):
         bucket, path = self._get_bucket_path(path)
