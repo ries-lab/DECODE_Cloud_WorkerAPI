@@ -1,6 +1,9 @@
-from fastapi import APIRouter, Depends, Query, status
+import enum
+import os
+from fastapi import APIRouter, Depends, File, Query, status, UploadFile
+
 from workerfacing_api.core.queue import JobQueue
-from workerfacing_api.dependencies import get_queue
+from workerfacing_api.dependencies import filesystem_dep, get_queue
 from workerfacing_api.schemas.rds_models import JobStates
 from workerfacing_api.schemas.queue_jobs import JobSpecs
 
@@ -52,3 +55,23 @@ async def get_job_status(job_id: int, queue: JobQueue = Depends(get_queue)):
 @router.put("/jobs/{job_id}/status", status_code=status.HTTP_200_OK)
 async def put_job_status(job_id: int, status: JobStates, queue: JobQueue = Depends(get_queue)):
     return queue.update_job_status(job_id, status)
+
+
+class UploadType(enum.Enum):
+    output = "output"
+    log = "log"
+    artifact = "artifact"
+
+
+@router.post("/jobs/{job_id}/files", status_code=status.HTTP_201_CREATED)
+async def post_file(
+    job_id: int,
+    type: UploadType,
+    path: str,
+    file: UploadFile = File(...),
+    filesystem=Depends(filesystem_dep),
+    queue: JobQueue = Depends(get_queue),
+):
+    job = queue.get_job(job_id)
+    path = os.path.join(job.paths_upload[type.value], path)  # not pathlib.Path since it does s3://x => s3:/x
+    return filesystem.post_file(file, path)
