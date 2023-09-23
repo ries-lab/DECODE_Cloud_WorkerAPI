@@ -1,13 +1,9 @@
 import abc
-import boto3
 import os
 import shutil
 from fastapi import HTTPException, status
 from fastapi.responses import FileResponse
 from pathlib import Path
-
-import workerfacing_api.settings as settings
-
 
 
 class FileSystem(abc.ABC):
@@ -42,7 +38,7 @@ class LocalFilesystem(FileSystem):
     def get_file_url(self, path: str, request_url: str, url_endpoint: str, files_endpoint: str):
         if not os.path.exists(path):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
-        return request_url.replace(url_endpoint, files_endpoint)
+        return request_url.replace(url_endpoint, files_endpoint, 1)
 
     def post_file(self, file, path: str):
         if not Path(self.base_post_path) in Path(path).parents:
@@ -83,7 +79,8 @@ class S3Filesystem(FileSystem):
             ExpiresIn=60*10,
         )
         if not resp:
-            return HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+        return resp
 
     def post_file(self, file, path: str):
         bucket, path = self._get_bucket_path(path)
