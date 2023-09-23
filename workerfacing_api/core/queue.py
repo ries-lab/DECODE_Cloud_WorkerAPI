@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from workerfacing_api import settings
 from workerfacing_api.schemas.rds_models import QueuedJob, JobStates, Base
-from workerfacing_api.crud.job_tracking import update_job
+from workerfacing_api.crud import job_tracking
 
 
 class JobQueue(ABC):
@@ -38,7 +38,8 @@ class JobQueue(ABC):
     def enqueue(self, environment: str | None, item: dict):
         """Push a new job to the queue.
         """
-        pass
+        if not "job" in item:
+            raise ValueError("Item must contain a job.")
 
     @abstractmethod
     def peek(self, hostname: str, environment: str | None, older_than: int = 0) -> Tuple[dict, str | None] | None:
@@ -51,7 +52,7 @@ class JobQueue(ABC):
         pass
 
     @abstractmethod
-    def pop(self, environment: str | None, receipt_handle: str):
+    def pop(self, environment: str | None, receipt_handle: str) -> bool:
         """Delete job from the queue.
         """
         pass
@@ -63,35 +64,25 @@ class JobQueue(ABC):
         item, receipt_handle = self.peek(environment=environment, older_than=older_than, **kwargs)
         # if element found
         if item:
-            # check "old enough"
-            time_now = datetime.datetime.utcnow()
-            item_age = time_now - datetime.datetime.fromisoformat(item['meta']['date_created'])
-            if item_age > datetime.timedelta(seconds=older_than):
-                # remove from queue and return
-                # concurrency handled by the fact that if the object cannot be popped
-                # (was already popped by another worker), the peek will return None
-                # and not the same object
-                self.pop(environment=environment, receipt_handle=receipt_handle)
+            successful = self.pop(environment=environment, receipt_handle=receipt_handle)
+            if successful:
                 return item
         return None
     
-    @abstractmethod
     def get_job(self, job_id: str):
         """Get job information, not necessarily in queue.
         """
-        pass
+        raise NotImplementedError
     
-    @abstractmethod
     def update_job_status(self, job_id: int, status: JobStates):
         """Update the job status.
         """
-        pass
+        raise NotImplementedError
     
-    @abstractmethod
     def handle_timeouts(self, max_retries: int, timeout_failure: int):
         """Handle a timeout (keepalive signal not received).
         """
-        pass
+        raise NotImplementedError
 
 
 @deprecated(reason="Using a database as queue")
@@ -116,47 +107,40 @@ class LocalJobQueue(JobQueue):
             pass
     
     def enqueue(self, environment: str | None, item: dict):
+        super().enqueue(environment, item)
         with open(self.queue_path, 'rb+') as f:
             # Read in
             queue = pickle.load(f)
             # Push new job
-            queue[environment] = queue.get(environment, list()) + [item]
+            queue_item = {**item, "creation_timestamp": datetime.datetime.utcnow()}
+            queue[environment] = queue.get(environment, list()) + [queue_item]
             # Overwrite
             f.seek(0)
             f.truncate()
             pickle.dump(queue, f)
-        super().enqueue(environment, item)
     
     def peek(self, hostname: str, environment: str | None, older_than: int = 0) -> Tuple[dict | None, str | None]:
-        # older than argument not supported
         with open(self.queue_path, 'rb+') as f:
             queue = pickle.load(f)
         if len(queue.get(environment, list())):
-            item = queue[environment][0]
-            return item, sha256(item)
+            queue_item = queue[environment][0]
+            age = datetime.datetime.utcnow() - queue_item["creation_timestamp"]
+            if (age > datetime.timedelta(seconds=older_than)):
+                item = queue_item["job"]
+                return item, sha256(queue_item)
         return None, None
 
-    def pop(self, environment: str | None, receipt_handle):
+    def pop(self, environment: str | None, receipt_handle) -> bool:
         with open(self.queue_path, 'rb+') as f:
             queue = pickle.load(f)
             if queue.get(environment):
                 if sha256(queue[environment][0]) != receipt_handle:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"Element not first in queue.")
+                    return False
             queue[environment] = queue[environment][1:]
             f.seek(0)
             f.truncate()
             pickle.dump(queue, f)
-    
-    def get_job(self, job_id: str):
-        raise NotImplementedError("This method is implemented only for RDS queues.")
-
-    def update_job_status(self, job_id: int, status: JobStates):
-        raise NotImplementedError("This method is implemented only for RDS queues.")
-    
-    def handle_timeouts(self, max_retries: int, timeout_failure: int):
-        raise NotImplementedError("This method is implemented only for RDS queues.")
+        return True
 
 
 @deprecated(reason="Using a database as queue")
@@ -201,16 +185,16 @@ class SQSJobQueue(JobQueue):
 
     def enqueue(self, environment: str | None, item: dict):
         try:
+            queue_item = {**item, "creation_timestamp": datetime.datetime.utcnow().isoformat()}
             self.sqs_client.send_message(
                 QueueUrl=self.queue_urls[environment],
-                MessageBody=json.dumps(item),
+                MessageBody=json.dumps(queue_item),
                 MessageGroupId="0",
             )
         except botocore.exceptions.ClientError as error:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error sending message to SQS queue: {error}.")
-        super().enqueue(environment, item)
 
     def peek(self, hostname: str, environment: str, older_than: int = 0) -> Tuple[dict | None, str | None]:
         # older_than argument not supported
@@ -227,31 +211,21 @@ class SQSJobQueue(JobQueue):
         if len(response.get('Messages', [])):
             message = response['Messages'][0]
             message_body = message['Body']
-            item = json.loads(message_body)
-            receipt_handle = message['ReceiptHandle']
-            return item, receipt_handle
+            queue_item = json.loads(message_body)
+            if datetime.datetime.utcnow() - datetime.datetime.fromisoformat(queue_item["creation_timestamp"]) > datetime.timedelta(seconds=older_than):
+                receipt_handle = message['ReceiptHandle']
+                return queue_item["job"], receipt_handle
         return None, None
 
-    def pop(self, environment: str, receipt_handle: str):
+    def pop(self, environment: str, receipt_handle: str) -> bool:
         try:
             response = self.sqs_client.delete_message(
                 QueueUrl=self.queue_urls[environment],
                 ReceiptHandle=receipt_handle,
             )
         except botocore.exceptions.ClientError as error:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error deleting message from SQS queue: {error}.")
-        return response
-
-    def get_job(self, job_id: str):
-        raise NotImplementedError("This method is implemented only for RDS queues.")
-
-    def update_job_status(self, job_id: int, status: JobStates):
-        raise NotImplementedError("This method is implemented only for RDS queues.")
-    
-    def handle_timeouts(self, max_retries: int, timeout_failure: int):
-        raise NotImplementedError("This method is implemented only for RDS queues.")
+            return False
+        return True
 
 
 class RDSJobQueue(JobQueue):
@@ -323,7 +297,7 @@ class RDSJobQueue(JobQueue):
         gpu_archi: str | None = None,
         groups: list[str] | None = None,
         older_than: int = 0,
-    ) -> Tuple[dict | None, str | None]:
+    ) -> Tuple[dict | None, tuple[int, str] | None]:
         if groups is None:
             groups = []
         if "<w>" in hostname or "<\w>" in hostname:
@@ -351,30 +325,34 @@ class RDSJobQueue(JobQueue):
                    # only if worker did not already try running this job
                    ret = ret.filter(QueuedJob.workers.contains(worker_str) == False)
                 ret = ret.order_by(QueuedJob.priority.desc()).order_by(QueuedJob.creation_timestamp.asc())
-                ret = ret.with_for_update().first()  # with_for_update locks concurrent pulls
-                return ret
+                return ret.first()
 
             # prioritize private jobs
             job = filter_sort_query(query.filter(QueuedJob.group.in_(groups)))
             if job is None:
                 job = filter_sort_query(query)
             if job:
-                self._update_job_status(session, job, status=JobStates.pulled)
-                job.workers += worker_str
-                session.add(job)
-                session.commit()
-                return {"job_id": job.id, **job.job}, str(job.id)
+                return {"job_id": job.id, **job.job}, (job.id, hostname)
         return None, None
 
-    def pop(self, environment: str, receipt_handle: str):
-        # not doing anything, since we keep the job in the database for tracking
-        pass
+    def pop(self, environment: str, receipt_handle: tuple[int, str]) -> bool:
+        job_id, worker_str = receipt_handle
+        with Session(self.engine) as session:
+            job = self.get_job(job_id, session, lock=True)
+            if job.status != JobStates.queued.value:
+                return False
+            job.workers += worker_str
+            self._update_job_status(session, job, status=JobStates.pulled)
+        return True
     
-    def get_job(self, job_id: int, session = None):
+    def get_job(self, job_id: int, session = None, lock: bool = False):
         if not session:
             with Session(self.engine) as session:
                 return self.get_job(job_id, session)
-        res = session.query(QueuedJob).filter(QueuedJob.id == job_id).first()
+        res = session.query(QueuedJob).filter(QueuedJob.id == job_id)
+        if lock:
+            res = res.with_for_update()
+        res = res.first()
         if not res:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -387,11 +365,11 @@ class RDSJobQueue(JobQueue):
         job.last_updated = datetime.datetime.utcnow()
         session.add(job)
         session.commit()
-        update_job(job.job["meta"]["job_id"], status)
+        job_tracking.update_job(job.job["meta"]["job_id"], status)
     
     def update_job_status(self, job_id: int, status: JobStates):
         with Session(self.engine) as session:
-            job = self.get_job(job_id, session)
+            job = self.get_job(job_id, session, lock=True)
             self._update_job_status(session, job, status)
     
     def handle_timeouts(self, max_retries: int, timeout_failure: int):
