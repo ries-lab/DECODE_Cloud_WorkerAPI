@@ -66,21 +66,25 @@ class S3Filesystem(FileSystem):
         )
 
     def _get_bucket_path(self, path):
-        assert path.startswith("s3://")
+        if not path.startswith("s3://"):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
         bucket, _, path = path[5:].partition("/")
-        assert bucket == self.bucket
+        if not bucket == self.bucket:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
         return bucket, path
 
     def get_file_url(self, path: str, request_url: str, url_endpoint: str, files_endpoint: str):
         bucket, path = self._get_bucket_path(path)
-        resp = self.s3_client.generate_presigned_url(
+
+        response = self.s3_client.list_objects_v2(Bucket=bucket, Prefix=path)
+        if not 'Contents' in response:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+        return self.s3_client.generate_presigned_url(
             "get_object",
             Params={"Bucket": bucket, "Key": path},
             ExpiresIn=60*10,
         )
-        if not resp:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
-        return resp
 
     def post_file(self, file, path: str):
         bucket, path = self._get_bucket_path(path)
