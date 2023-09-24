@@ -67,6 +67,8 @@ class JobQueue(ABC):
             successful = self.pop(environment=environment, receipt_handle=receipt_handle)
             if successful:
                 return item
+            else:  # job pulled by other worker first, get another one
+                return self.dequeue(environment=environment, older_than=older_than, **kwargs)
         return None
     
     def get_job(self, job_id: str):
