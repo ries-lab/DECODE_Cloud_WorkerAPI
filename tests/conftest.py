@@ -1,88 +1,165 @@
-import pytest
 import dotenv
 dotenv.load_dotenv()
-
+import pytest
+import shutil
+from fastapi import UploadFile
 from io import BytesIO
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
-from api.main import app
-from api.dependencies import current_user_dep, CognitoClaims
-from api.database import get_db, Base
+from workerfacing_api import settings
+from workerfacing_api.crud import job_tracking
+from workerfacing_api.main import workerfacing_app
+from workerfacing_api.dependencies import current_user_dep, CognitoClaims, filesystem_dep, APIKeyDependency, authorizer
 
-root_file1_name = 'dfile.txt'
-root_file2_name = 'cfile.txt'
-subdir_name = 'test_dir/'
-subdir_file1_name = 'test_dir/test_file.txt'
-root_file1_contents = 'file contents'
-root_file2_contents = 'file2 contents'
-subdir_file1_contents = 'subdir file contents'
+
+base_dir = "test_user_dir"
+data_file1_contents = f"data file1 contents"
 
 test_username = "test_user"
+internal_api_key_secret = "test_internal_api_key"
 
-testing_database = "sqlite:///./test.db"
+example_app = {"application": "app", "version": "latest", "entrypoint": "test"}
+example_attrs = {
+    "files_down": {"data_ids": ["test"], "config_id": "test", "artifact_ids": []},
+    "env_vars": {},
+}
 
 
-@pytest.fixture(scope="session")
-def monkeypatch_session():
+@pytest.fixture(scope="module")
+def monkeypatch_module():
     with pytest.MonkeyPatch.context() as mp:
         yield mp
 
 
-@pytest.fixture(autouse=True, scope="session")
-def override_auth(monkeypatch_session):
-    monkeypatch_session.setitem(
-        app.dependency_overrides,
-        current_user_dep,
-        lambda: CognitoClaims(**{"cognito:username": test_username, "email": "test@example.com"}),
+@pytest.fixture(autouse=True, scope="module")
+def patch_update_job(monkeypatch_module):
+    def mock_update_job(*args, **kwargs):
+        return None
+    monkeypatch_module.setattr(job_tracking, "update_job", mock_update_job)
+
+
+@pytest.fixture(
+    scope="module",
+    params=["local", "aws_mock", pytest.param("aws", marks=pytest.mark.aws)],
+)
+def env(request):
+    return request.param
+
+
+@pytest.fixture(scope="module")
+def base_filesystem(env, monkeypatch_module):
+    bucket_name = "decode-cloud-tests-bucket"
+    region_name = "eu-central-1"
+    global base_dir
+
+    if env == "local":
+        base_dir = f"./{base_dir}"
+
+    monkeypatch_module.setattr(
+        settings,
+        "user_data_root_path",
+        base_dir,
     )
+    monkeypatch_module.setattr(
+        settings,
+        "s3_bucket",
+        bucket_name,
+    )
+    monkeypatch_module.setattr(
+        settings,
+        "filesystem",
+        "local" if env == "local" else "s3",
+    )
+
+    if env == "local":
+        from workerfacing_api.core.filesystem import LocalFilesystem
+
+        yield LocalFilesystem(base_dir, base_dir)
+        try:
+            shutil.rmtree(base_dir)
+        except FileNotFoundError:
+            pass
+
+    elif env == "aws_mock":
+        from moto import mock_s3
+
+        with mock_s3():
+            from workerfacing_api.core.filesystem import S3Filesystem
+            import boto3
+
+            s3_client = boto3.client("s3", region_name=region_name)
+            s3_client.create_bucket(
+                Bucket=bucket_name,
+                CreateBucketConfiguration={"LocationConstraint": region_name},
+            )
+            yield S3Filesystem(s3_client, bucket_name)
+
+    elif env == "aws":
+        from workerfacing_api.core.filesystem import S3Filesystem
+        import boto3
+
+        s3_client = boto3.client("s3", region_name=region_name)
+        s3_client.create_bucket(
+            Bucket=bucket_name,
+            CreateBucketConfiguration={"LocationConstraint": region_name},
+        )
+        yield S3Filesystem(s3_client, bucket_name)
+        s3 = boto3.resource("s3", region_name=region_name)
+        s3_bucket = s3.Bucket(bucket_name)
+        bucket_versioning = s3.BucketVersioning(bucket_name)
+        if bucket_versioning.status == "Enabled":
+            s3_bucket.object_versions.delete()
+        else:
+            s3_bucket.objects.all().delete()
+        s3_bucket.delete()
+
+    else:
+        raise NotImplementedError
+
+
+@pytest.fixture(scope="module", autouse=True)
+def override_filesystem_dep(base_filesystem, monkeypatch_module):
+    monkeypatch_module.setitem(
+        workerfacing_app.dependency_overrides, filesystem_dep, lambda: base_filesystem
+    )
+
+
+@pytest.fixture(autouse=True, scope="module")
+def override_auth(monkeypatch_module):
+    monkeypatch_module.setitem(
+        workerfacing_app.dependency_overrides,
+        current_user_dep,
+        lambda: CognitoClaims(
+            **{"cognito:username": test_username, "email": "test@example.com"}
+        ),
+    )
+
+
+@pytest.fixture(scope="module", autouse=True)
+def override_internal_api_key_secret(monkeypatch_module):
+    monkeypatch_module.setitem(
+        workerfacing_app.dependency_overrides,
+        authorizer,
+        APIKeyDependency(internal_api_key_secret),
+    )
+    return internal_api_key_secret
 
 
 @pytest.fixture
 def require_auth(monkeypatch):
-    monkeypatch.delitem(app.dependency_overrides, current_user_dep)
+    monkeypatch.delitem(workerfacing_app.dependency_overrides, current_user_dep)
 
 
-@pytest.fixture(scope="session")
-def db():
-    # Override DB
-    engine = create_engine(
-        testing_database, connect_args={"check_same_thread": False}
+@pytest.fixture
+def data_file1_name(env, base_filesystem):
+    if env == "local":
+        yield f"{base_dir}/data/test/data_file1.txt"
+    else:
+        yield f"s3://{base_filesystem.bucket}/{base_dir}/data/test/data_file1.txt"
+
+
+@pytest.fixture
+def data_file1(env, base_filesystem, data_file1_name):
+    file_name = data_file1_name
+    base_filesystem.post_file(
+        UploadFile(filename="", file=BytesIO(bytes(data_file1_contents, "utf-8"))), file_name
     )
-    make_testing_session = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-    Base.metadata.create_all(bind=engine)
-    db = make_testing_session()
-    yield db
-    db.close()
-    Base.metadata.drop_all(bind=engine)
-
-
-@pytest.fixture(autouse=True, scope="session")
-def override_get_db(db, monkeypatch_session):
-    monkeypatch_session.setitem(app.dependency_overrides, get_db, lambda: db)
-
-
-@pytest.fixture
-def multiple_files(filesystem):
-    filesystem.create_file(root_file1_name, BytesIO(bytes(root_file1_contents, 'utf-8')))
-    filesystem.create_file(root_file2_name, BytesIO(bytes(root_file2_contents, 'utf-8')))
-    filesystem.create_file(subdir_file1_name, BytesIO(bytes(subdir_file1_contents, 'utf-8')))
-    yield
-    filesystem.delete(root_file1_name)
-    filesystem.delete(root_file2_name)
-    filesystem.delete(subdir_file1_name)
-
-
-@pytest.fixture
-def single_file(filesystem):
-    filesystem.create_file(root_file1_name, BytesIO(bytes(root_file1_contents, 'utf-8')))
-    yield
-    filesystem.delete(root_file1_name)
-
-
-@pytest.fixture
-def cleanup_files(filesystem):
-    to_cleanup = []
-    yield to_cleanup
-    for file in to_cleanup:
-        filesystem.delete(file)
