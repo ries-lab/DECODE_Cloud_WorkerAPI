@@ -4,6 +4,7 @@ import pytest
 import shutil
 from fastapi import UploadFile
 from io import BytesIO
+from unittest.mock import MagicMock
 
 from workerfacing_api import settings
 from workerfacing_api.crud import job_tracking
@@ -30,11 +31,11 @@ def monkeypatch_module():
         yield mp
 
 
-@pytest.fixture(autouse=True, scope="module")
+@pytest.fixture(autouse=True, scope="function")
 def patch_update_job(monkeypatch_module):
-    def mock_update_job(*args, **kwargs):
-        return None
+    mock_update_job = MagicMock()
     monkeypatch_module.setattr(job_tracking, "update_job", mock_update_job)
+    return mock_update_job
 
 
 @pytest.fixture(

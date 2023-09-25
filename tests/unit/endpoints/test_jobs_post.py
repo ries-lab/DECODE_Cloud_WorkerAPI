@@ -2,7 +2,7 @@ import datetime
 import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import MagicMock
-from tests.conftest import monkeypatch_module, internal_api_key_secret
+from tests.conftest import monkeypatch_module, internal_api_key_secret, patch_update_job
 from workerfacing_api.dependencies import get_queue
 from workerfacing_api.main import workerfacing_app
 
@@ -37,6 +37,7 @@ def queue_job():
     }
 
 
-def test_post_job(queue_enqueue, queue_job):
+def test_post_job(queue_enqueue, queue_job, patch_update_job):
     resp = client.post(endpoint, headers={"x-api-key": internal_api_key_secret}, json=queue_job)
     assert resp.json()["job"]["meta"]["job_id"] == 1
+    queue_enqueue.assert_called_once()

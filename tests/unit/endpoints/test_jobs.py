@@ -1,11 +1,12 @@
 import pytest
 import time
 from fastapi.testclient import TestClient
-from tests.conftest import monkeypatch_module, base_filesystem
+from tests.conftest import monkeypatch_module, base_filesystem, patch_update_job
 from tests.unit.core.test_queue import jobs, full_jobs, populated_queue, populated_full_queue
 from workerfacing_api.core import queue as core_queue
 from workerfacing_api.dependencies import get_queue
 from workerfacing_api.main import workerfacing_app
+from workerfacing_api.schemas.rds_models import JobStates
 
 
 client = TestClient(workerfacing_app)
@@ -27,6 +28,10 @@ def queue(monkeypatch_module, tmpdir):
 def env_name():
     return "local"
 
+
+def test_get_jobs(populated_full_queue, env_name, patch_update_job):
+    res = client.get(endpoint, params={"hostname": "i", "cpu_cores": 999, "memory": 999, "environment": env_name})
+    patch_update_job.assert_called_once_with(1, JobStates.pulled)
 
 def test_get_jobs_required_params(populated_full_queue, env_name):
     required = ["hostname", "cpu_cores", "memory", "environment"]
@@ -77,4 +82,19 @@ def test_get_jobs_dequeue_old(populated_queue, env_name):
     # old enough
     time.sleep(5)
     res = client.get(endpoint, params={"hostname": "i", "cpu_cores": 999, "memory": 999, "environment": env_name, "older_than": 5})
-    assert len(res.json()) == 1
+    assert len(res.json()) == 1 
+
+
+def test_get_job_status(populated_full_queue, env_name):
+    res = client.get(f"{endpoint}/1/status")
+    assert res.json() == "queued"
+    # dequeue
+    res = client.get(endpoint, params={"hostname": "i", "cpu_cores": 999, "memory": 999, "environment": env_name})
+    res = client.get(f"{endpoint}/{list(res.json().keys())[0]}/status")
+    assert res.json() == "pulled"
+
+def test_put_job_status(populated_full_queue, env_name):
+    res = client.put(f"{endpoint}/1/status", params={"status": "running"})
+    assert res.status_code == 200
+    res = client.get(f"{endpoint}/1/status")
+    assert res.json() == "running"

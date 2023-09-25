@@ -215,3 +215,22 @@ class TestRDSLocalQueue(TestLocalQueue):
         # old enough
         time.sleep(5)
         assert populated_queue.dequeue(hostname="i", environment=env_name, older_than=5) is not None
+
+    def test_failures(self, populated_full_queue, env_name):
+        job_id = populated_full_queue.dequeue(hostname="first", environment=env_name)["job_id"]
+        res = populated_full_queue.dequeue(hostname="second", environment=env_name)
+        assert not res or res["job_id"] != job_id
+        # fail -> requeue
+        time.sleep(6)
+        populated_full_queue.handle_timeouts(max_retries=1, timeout_failure=5)
+        assert populated_full_queue.get_job(job_id).status == "queued"
+        # same worker can not repull
+        res = populated_full_queue.dequeue(hostname="first", environment=env_name)
+        assert not res or res["job_id"] != job_id
+        # different worker can repull
+        res = populated_full_queue.dequeue(hostname="second", environment=env_name)
+        assert res["job_id"] == job_id
+        # fail
+        time.sleep(6)
+        populated_full_queue.handle_timeouts(max_retries=1, timeout_failure=5)
+        assert populated_full_queue.get_job(job_id).status == "error"
