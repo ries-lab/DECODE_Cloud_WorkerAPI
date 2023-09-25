@@ -12,6 +12,7 @@ queue_db_url = settings.queue_db_url
 queue_ = queue.RDSJobQueue(queue_db_url)
 queue_.create(err_on_exists=False)
 
+
 def get_queue() -> queue.RDSJobQueue:
     return queue_
 
@@ -27,6 +28,7 @@ class APIKeyDependency:
             raise HTTPException(status_code=401, detail="unauthorized")
         return x_api_key
 
+
 authorizer = APIKeyDependency(key=settings.internal_api_key_secret)
 
 
@@ -34,21 +36,26 @@ authorizer = APIKeyDependency(key=settings.internal_api_key_secret)
 current_user_dep = CognitoCurrentUser(
     region=settings.cognito_region,
     userPoolId=settings.cognito_user_pool_id,
-    client_id=settings.cognito_client_id
+    client_id=settings.cognito_client_id,
 )
 
-async def current_user_global_dep(request: Request, current_user: CognitoClaims = Depends(current_user_dep)):
+
+async def current_user_global_dep(
+    request: Request, current_user: CognitoClaims = Depends(current_user_dep)
+):
     request.state.current_user = current_user
     return current_user
 
 
 # Files
 async def filesystem_dep():
-    if settings.filesystem == 's3':
-        s3_client = boto3.client('s3')
+    if settings.filesystem == "s3":
+        s3_client = boto3.client("s3")
         s3_bucket = settings.s3_bucket
         return filesystem.S3Filesystem(s3_client, s3_bucket)
-    elif settings.filesystem == 'local':
-        return filesystem.LocalFilesystem(settings.user_data_root_path, settings.user_data_root_path)
+    elif settings.filesystem == "local":
+        return filesystem.LocalFilesystem(
+            settings.user_data_root_path, settings.user_data_root_path
+        )
     else:
-        raise ValueError('Invalid filesystem setting')
+        raise ValueError("Invalid filesystem setting")

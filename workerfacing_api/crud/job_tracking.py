@@ -7,10 +7,7 @@ from workerfacing_api.schemas.rds_models import JobStates
 
 
 def update_job(job_id: int, job_status: JobStates) -> None:
-    body = {
-        "job_id": job_id,
-        "status": job_status.value
-    }
+    body = {"job_id": job_id, "status": job_status.value}
     resp = requests.put(
         url=f"{settings.get_userfacing_api_url()}/_job_status",
         json=jsonable_encoder(body),
@@ -19,5 +16,5 @@ def update_job(job_id: int, job_status: JobStates) -> None:
     if not str(resp.status_code).startswith("2"):
         raise HTTPException(
             status_code=resp.status_code,
-            detail=f"Error while updating job {job_id}. Traceback: \n{resp.text}."
+            detail=f"Error while updating job {job_id}. Traceback: \n{resp.text}.",
         )

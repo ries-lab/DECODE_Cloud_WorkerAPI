@@ -1,4 +1,10 @@
-from tests.conftest import base_filesystem, data_file1_name, data_file1_contents, data_file1, env
+from tests.conftest import (
+    base_filesystem,
+    data_file1_name,
+    data_file1_contents,
+    data_file1,
+    env,
+)
 import pytest
 import requests
 from fastapi import HTTPException

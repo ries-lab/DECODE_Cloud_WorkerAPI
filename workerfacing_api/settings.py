@@ -20,11 +20,15 @@ if os.environ.get("QUEUE_DB_SECRET"):  # exists and not None
         queue_db_secret = json.loads(queue_db_secret)["password"]  # AWS Secrets Manager
     except:
         pass
-    queue_db_url = queue_db_url.format(json.loads(os.environ["QUEUE_DB_SECRET"])["password"])
+    queue_db_url = queue_db_url.format(
+        json.loads(os.environ["QUEUE_DB_SECRET"])["password"]
+    )
 
 
 # User-facing API
-get_userfacing_api_url = lambda: os.environ.get("USERFACING_API_URL")  # need to be able to change this at runtime
+get_userfacing_api_url = lambda: os.environ.get(
+    "USERFACING_API_URL"
+)  # need to be able to change this at runtime
 internal_api_key_secret = os.environ.get("INTERNAL_API_KEY_SECRET")
 
 

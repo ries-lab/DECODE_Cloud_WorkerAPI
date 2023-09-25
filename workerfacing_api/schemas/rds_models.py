@@ -20,10 +20,16 @@ class QueuedJob(Base):
 
     # base queue attributes
     id = Column(Integer, primary_key=True, index=True)
-    creation_timestamp = Column(DateTime, default=datetime.datetime.utcnow)  # to check job age
-    last_updated = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    creation_timestamp = Column(
+        DateTime, default=datetime.datetime.utcnow
+    )  # to check job age
+    last_updated = Column(
+        DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow
+    )
 
-    status = Column(String, Enum(JobStates), nullable=False, default=JobStates.queued.value)
+    status = Column(
+        String, Enum(JobStates), nullable=False, default=JobStates.queued.value
+    )
     num_retries = Column(Integer, default=0)
 
     job = Column(JSON, nullable=False)

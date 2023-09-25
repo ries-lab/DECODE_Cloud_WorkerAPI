@@ -1,4 +1,5 @@
 import dotenv
+
 dotenv.load_dotenv()
 import pytest
 import shutil
@@ -9,7 +10,13 @@ from unittest.mock import MagicMock
 from workerfacing_api import settings
 from workerfacing_api.crud import job_tracking
 from workerfacing_api.main import workerfacing_app
-from workerfacing_api.dependencies import current_user_dep, CognitoClaims, filesystem_dep, APIKeyDependency, authorizer
+from workerfacing_api.dependencies import (
+    current_user_dep,
+    CognitoClaims,
+    filesystem_dep,
+    APIKeyDependency,
+    authorizer,
+)
 
 
 base_dir = "test_user_dir"
@@ -162,5 +169,6 @@ def data_file1_name(env, base_filesystem):
 def data_file1(env, base_filesystem, data_file1_name):
     file_name = data_file1_name
     base_filesystem.post_file(
-        UploadFile(filename="", file=BytesIO(bytes(data_file1_contents, "utf-8"))), file_name
+        UploadFile(filename="", file=BytesIO(bytes(data_file1_contents, "utf-8"))),
+        file_name,
     )

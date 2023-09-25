@@ -38,6 +38,8 @@ def queue_job():
 
 
 def test_post_job(queue_enqueue, queue_job, patch_update_job):
-    resp = client.post(endpoint, headers={"x-api-key": internal_api_key_secret}, json=queue_job)
+    resp = client.post(
+        endpoint, headers={"x-api-key": internal_api_key_secret}, json=queue_job
+    )
     assert resp.json()["job"]["meta"]["job_id"] == 1
     queue_enqueue.assert_called_once()

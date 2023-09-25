@@ -52,7 +52,9 @@ async def get_job_status(job_id: int, queue: JobQueue = Depends(get_queue)):
 
 
 @router.put("/jobs/{job_id}/status", status_code=status.HTTP_200_OK)
-async def put_job_status(job_id: int, status: JobStates, queue: JobQueue = Depends(get_queue)):
+async def put_job_status(
+    job_id: int, status: JobStates, queue: JobQueue = Depends(get_queue)
+):
     return queue.update_job_status(job_id, status)
 
 
@@ -72,5 +74,7 @@ async def post_file(
     queue: JobQueue = Depends(get_queue),
 ):
     job = queue.get_job(job_id)
-    path = os.path.join(job.paths_upload[type.value], path)  # not pathlib.Path since it does s3://x => s3:/x
+    path = os.path.join(
+        job.paths_upload[type.value], path
+    )  # not pathlib.Path since it does s3://x => s3:/x
     return filesystem.post_file(file, path)

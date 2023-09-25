@@ -13,7 +13,9 @@ class FileSystem(abc.ABC):
     def get_file(self, path: str):
         raise NotImplementedError()
 
-    def get_file_url(self, path: str, request_url: str, url_endpoint: str, files_endpoint: str):
+    def get_file_url(
+        self, path: str, request_url: str, url_endpoint: str, files_endpoint: str
+    ):
         raise NotImplementedError()
 
     def post_file(self, file, path: str):
@@ -35,7 +37,9 @@ class LocalFilesystem(FileSystem):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
         return FileResponse(path)
 
-    def get_file_url(self, path: str, request_url: str, url_endpoint: str, files_endpoint: str):
+    def get_file_url(
+        self, path: str, request_url: str, url_endpoint: str, files_endpoint: str
+    ):
         if not os.path.exists(path):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
         return request_url.replace(url_endpoint, files_endpoint, 1)
@@ -73,17 +77,19 @@ class S3Filesystem(FileSystem):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
         return bucket, path
 
-    def get_file_url(self, path: str, request_url: str, url_endpoint: str, files_endpoint: str):
+    def get_file_url(
+        self, path: str, request_url: str, url_endpoint: str, files_endpoint: str
+    ):
         bucket, path = self._get_bucket_path(path)
 
         response = self.s3_client.list_objects_v2(Bucket=bucket, Prefix=path)
-        if not 'Contents' in response:
+        if not "Contents" in response:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
         return self.s3_client.generate_presigned_url(
             "get_object",
             Params={"Bucket": bucket, "Key": path},
-            ExpiresIn=60*10,
+            ExpiresIn=60 * 10,
         )
 
     def post_file(self, file, path: str):

@@ -26,6 +26,7 @@ class HardwareSpecs(BaseModel):
 class MetaSpecs(BaseModel):
     job_id: int
     date_created: datetime.datetime
+
     class Config:
         extra = "allow"
 
