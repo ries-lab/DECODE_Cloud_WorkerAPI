@@ -41,7 +41,6 @@ async def get_jobs(
         if job:
             job_id = job.pop("job_id")
             jobs.update({job_id: JobSpecs(**job)})
-            queue.update_job_status(job_id, status=JobStates.running)
         else:
             break
     return jobs

@@ -23,6 +23,7 @@ async def find_failed_jobs():
     timeout_failure = settings.timeout_failure
     n_retry, n_fail = queue.handle_timeouts(max_retries, timeout_failure)
     print(f"Silent fails check: {n_retry} re-queued, {n_fail} failed.")
+    return {"n_retry": n_retry, "n_fail": n_fail}
 
 
 @workerfacing_app.get("/")

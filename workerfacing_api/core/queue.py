@@ -338,13 +338,16 @@ class RDSJobQueue(JobQueue):
             if job is None:
                 job = filter_sort_query(query)
             if job:
-                return {"job_id": job.id, **job.job}, (job.id, hostname)
+                return {"job_id": job.id, **job.job}, (job.id, worker_str)
         return None, None
 
     def pop(self, environment: str, receipt_handle: tuple[int, str]) -> bool:
         job_id, worker_str = receipt_handle
         with Session(self.engine) as session:
-            job = self.get_job(job_id, session, lock=True)
+            try:
+                job = self.get_job(job_id, session, lock=True)
+            except HTTPException:
+                return False
             if job.status != JobStates.queued.value:
                 return False
             job.workers += worker_str
@@ -357,14 +360,13 @@ class RDSJobQueue(JobQueue):
                 return self.get_job(job_id, session)
         res = session.query(QueuedJob).filter(QueuedJob.id == job_id)
         if lock:
-            res = res.with_for_update()
-        res = res.first()
+            res = res.with_for_update(of=QueuedJob, nowait=True)
         if not res:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Job with id {job_id} not found",
             )
-        return res
+        return res.first()
     
     def _update_job_status(self, session, job, status: JobStates):
         job.status = status.value
