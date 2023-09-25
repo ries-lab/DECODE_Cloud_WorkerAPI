@@ -4,6 +4,7 @@ import datetime
 import json
 import os
 import pickle
+import threading
 import time
 from abc import ABC, abstractmethod
 from deprecated import deprecated
@@ -94,6 +95,7 @@ class LocalJobQueue(JobQueue):
 
     def __init__(self, queue_path: str):
         self.queue_path = queue_path
+        self.lock = threading.Lock()
     
     def create(self, err_on_exists: bool = True):
         if os.path.exists(self.queue_path) and err_on_exists:
@@ -133,15 +135,17 @@ class LocalJobQueue(JobQueue):
         return None, None
 
     def pop(self, environment: str | None, receipt_handle) -> bool:
+        self.lock.acquire()
         with open(self.queue_path, 'rb+') as f:
             queue = pickle.load(f)
-            if queue.get(environment):
-                if sha256(queue[environment][0]) != receipt_handle:
-                    return False
+            if len(queue[environment]) == 0 or sha256(queue[environment][0]) != receipt_handle:
+                self.lock.release()
+                return False
             queue[environment] = queue[environment][1:]
             f.seek(0)
             f.truncate()
             pickle.dump(queue, f)
+        self.lock.release()
         return True
 
 

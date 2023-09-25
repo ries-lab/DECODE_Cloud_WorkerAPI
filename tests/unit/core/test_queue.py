@@ -1,5 +1,7 @@
 import datetime
 import pytest
+import random
+import threading
 import time
 from workerfacing_api.core.queue import LocalJobQueue, SQSJobQueue, RDSJobQueue
 
@@ -126,6 +128,25 @@ class TestLocalQueue:
         # old enough
         time.sleep(2)
         assert populated_queue.dequeue(hostname="i", environment=env_name, older_than=2) is not None
+    
+    def test_concurrent_pulls(self, populated_full_queue, env_name):
+        found_jobs = [None] * 100
+
+        def _pull(i):
+            time.sleep(random.random() * 5)  # ensure enough time to pull all jobs
+            found_jobs[i] = populated_full_queue.dequeue(hostname="i", environment=env_name)
+
+        threads = []
+        for i in range(100):
+            thread = threading.Thread(target=_pull, args=(i,))
+            threads.append(thread)
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        found_jobs = [job for job in found_jobs if job is not None]
+        # no duplicates
+        assert len(found_jobs) == len(set([job["meta"]["job_id"] for job in found_jobs]))
 
 
 #@pytest.mark.skip("too slow in development")
