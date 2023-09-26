@@ -75,6 +75,6 @@ async def post_file(
 ):
     job = queue.get_job(job_id)
     path = os.path.join(
-        job.paths_upload[type.value], path
+        job.paths_upload[type.value], str(job_id), path
     )  # not pathlib.Path since it does s3://x => s3:/x
     return filesystem.post_file(file, path)

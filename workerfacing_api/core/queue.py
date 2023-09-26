@@ -19,6 +19,19 @@ from workerfacing_api.schemas.rds_models import QueuedJob, JobStates, Base
 from workerfacing_api.crud import job_tracking
 
 
+class UpdateLock:
+    """Context manager to lock a queue for update."""
+
+    def __init__(self):
+        self.lock = threading.Lock()
+
+    def __enter__(self):
+        self.lock.acquire()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.lock.release()
+
+
 class JobQueue(ABC):
     """Abstract multi-environment job queue."""
 
@@ -95,7 +108,7 @@ class LocalJobQueue(JobQueue):
 
     def __init__(self, queue_path: str):
         self.queue_path = queue_path
-        self.lock = threading.Lock()
+        self.update_lock = UpdateLock()
 
     def create(self, err_on_exists: bool = True):
         if os.path.exists(self.queue_path) and err_on_exists:
@@ -137,21 +150,19 @@ class LocalJobQueue(JobQueue):
         return None, None
 
     def pop(self, environment: str | None, receipt_handle) -> bool:
-        self.lock.acquire()
-        with open(self.queue_path, "rb+") as f:
-            queue = pickle.load(f)
-            if (
-                len(queue[environment]) == 0
-                or sha256(queue[environment][0]) != receipt_handle
-            ):
-                self.lock.release()
-                return False
-            queue[environment] = queue[environment][1:]
-            f.seek(0)
-            f.truncate()
-            pickle.dump(queue, f)
-        self.lock.release()
-        return True
+        with self.update_lock:
+            with open(self.queue_path, "rb+") as f:
+                queue = pickle.load(f)
+                if (
+                    len(queue[environment]) == 0
+                    or sha256(queue[environment][0]) != receipt_handle
+                ):
+                    return False
+                queue[environment] = queue[environment][1:]
+                f.seek(0)
+                f.truncate()
+                pickle.dump(queue, f)
+            return True
 
 
 @deprecated(reason="Using a database as queue")
@@ -261,6 +272,8 @@ class RDSJobQueue(JobQueue):
 
     def __init__(self, db_url: str, max_retries: int = 10, retry_wait: int = 60):
         self.db_url = db_url
+        if self.db_url.startswith("sqlite"):
+            self.update_lock = UpdateLock()  # necessary since sqlite does not support row-level locking
         self.engine = self._get_engine(self.db_url, max_retries, retry_wait)
         self.table_name = QueuedJob.__tablename__
 
@@ -278,7 +291,6 @@ class RDSJobQueue(JobQueue):
                 engine.connect()
                 return engine  # Connection successful
             except Exception as e:
-                print(f"Connection attempt failed: {str(e)}")
                 retries += 1
                 time.sleep(retry_wait)
 
@@ -374,29 +386,30 @@ class RDSJobQueue(JobQueue):
         return None, None
 
     def pop(self, environment: str, receipt_handle: tuple[int, str]) -> bool:
-        job_id, worker_str = receipt_handle
-        with Session(self.engine) as session:
-            try:
-                job = self.get_job(job_id, session, lock=True)
-            except HTTPException:
-                return False
-            if job.status != JobStates.queued.value:
-                return False
-            job.workers += worker_str
-            self._update_job_status(session, job, status=JobStates.pulled)
-        return True
+        with self.update_lock:
+            job_id, worker_str = receipt_handle
+            with Session(self.engine) as session:
+                try:
+                    job = self.get_job(job_id, session, lock=True)
+                except HTTPException:
+                    return False
+                if job.status != JobStates.queued.value:
+                    return False
+                job.workers += worker_str
+                self._update_job_status(session, job, status=JobStates.pulled)
+            return True
 
     def get_job(self, job_id: int, session=None, lock: bool = False):
         if not session:
             with Session(self.engine) as session:
-                return self.get_job(job_id, session)
+                return self.get_job(job_id, session, lock)
         res = session.query(QueuedJob).filter(QueuedJob.id == job_id)
         if lock:
             res = res.with_for_update(of=QueuedJob, nowait=True)
         if not res:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Job with id {job_id} not found",
+                detail=f"Job with id {job_id} not found (might have been pulled by another worker)",
             )
         return res.first()
 

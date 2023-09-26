@@ -1,7 +1,8 @@
 import pytest
 import time
 from fastapi.testclient import TestClient
-from tests.conftest import monkeypatch_module, base_filesystem, patch_update_job
+from io import BytesIO
+from tests.conftest import monkeypatch_module, base_filesystem, patch_update_job, base_dir, test_username
 from tests.unit.core.test_queue import (
     jobs,
     full_jobs,
@@ -45,6 +46,7 @@ def test_get_jobs(populated_full_queue, env_name, patch_update_job):
         },
     )
     patch_update_job.assert_called_once_with(1, JobStates.pulled)
+
 
 
 def test_get_jobs_required_params(populated_full_queue, env_name):
@@ -222,3 +224,35 @@ def test_put_job_status(populated_full_queue, env_name):
     assert res.status_code == 200
     res = client.get(f"{endpoint}/1/status")
     assert res.json() == "running"
+
+
+def test_job_files_post(env_name, full_jobs, populated_full_queue, base_filesystem):
+    file_name = "test_file.txt"
+    content = "test content"
+    job = full_jobs[0]
+    job_dequeue = client.get(
+        endpoint,
+        params={
+            "hostname": "i",
+            "cpu_cores": 999,
+            "memory": 999,
+            "environment": env_name,
+        },
+    ).json()
+    job_id, job_dequeue = list(job_dequeue.items())[0]
+    res = client.post(
+        f"{endpoint}/{job_id}/files",
+        params={"type": "output", "path": file_name},
+        files={
+            "file": (
+                file_name,
+                BytesIO(bytes(content, "utf-8")),
+                "text/plain",
+            ),
+        },
+    )
+    assert res.status_code == 201
+    path = f"{job['paths_upload']['output']}/{file_name}"
+    res = client.get(f"/files_url/{job['paths_upload']['output']}/{job_id}/{file_name}")
+    assert res.status_code == 200
+

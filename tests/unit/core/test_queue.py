@@ -1,8 +1,10 @@
 import datetime
 import pytest
+import psycopg2
 import random
 import threading
 import time
+from tests.conftest import example_app, example_paths_upload
 from workerfacing_api.core.queue import LocalJobQueue, SQSJobQueue, RDSJobQueue
 
 
@@ -14,27 +16,35 @@ def skip_aws_mock(env):
 
 
 @pytest.fixture(scope="function")
-def jobs():
+def jobs(env, base_filesystem):
     time_now = datetime.datetime.utcnow().isoformat()
+
+    paths_upload = example_paths_upload.copy()
+    for k, v in paths_upload.items():
+        if env == "local":
+            paths_upload[k] = f"{base_filesystem.base_post_path}/{v}"
+        else:
+            paths_upload[k] = f"s3://{base_filesystem.bucket}/{v}"
+
     common_base = {
-        "app": {"application": "app", "version": "v", "entrypoint": "e"},
-        "handler": {"image_url": "u"},
+        "app": example_app,
+        "handler": {"image_url": "u", "files_up": {"output": "out"}},
     }
     job0 = {
         "job": {**common_base, "meta": {"job_id": 0, "date_created": time_now}},
-        "paths_upload": {},
+        "paths_upload": paths_upload,
     }
     job1 = {
         "job": {**common_base, "meta": {"job_id": 1, "date_created": time_now}},
-        "paths_upload": {},
+        "paths_upload": paths_upload,
     }
     job2 = {
         "job": {**common_base, "meta": {"job_id": 2, "date_created": time_now}},
-        "paths_upload": {},
+        "paths_upload": paths_upload,
     }
     job3 = {
         "job": {**common_base, "meta": {"job_id": 3, "date_created": time_now}},
-        "paths_upload": {},
+        "paths_upload": paths_upload,
     }
     return job0, job1, job2, job3
 
@@ -193,7 +203,7 @@ class TestLocalQueue:
         )
 
 
-# @pytest.mark.skip("too slow in development")
+@pytest.mark.skip("too slow in development")
 class TestsSQSQueue(TestLocalQueue):
     @pytest.fixture
     def queue(self, env_name, skip_aws_mock):

@@ -26,10 +26,7 @@ test_username = "test_user"
 internal_api_key_secret = "test_internal_api_key"
 
 example_app = {"application": "app", "version": "latest", "entrypoint": "test"}
-example_attrs = {
-    "files_down": {"data_ids": ["test"], "config_id": "test", "artifact_ids": []},
-    "env_vars": {},
-}
+example_paths_upload = {"output": f"{test_username}/out", "log": f"{test_username}/log", "artifact": f"{test_username}/artifact"}
 
 
 @pytest.fixture(scope="module")
