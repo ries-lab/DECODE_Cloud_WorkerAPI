@@ -14,12 +14,11 @@ from workerfacing_api.main import workerfacing_app
 
 client = TestClient(workerfacing_app)
 endpoint = "/files"
-endpoint_url = "/files_url"
 
 
 def test_get_file(env, base_filesystem, data_file1, data_file1_name):
     if env == "local":
-        file_resp = client.get(f"{endpoint}/{data_file1_name}")
+        file_resp = client.get(f"{endpoint}/{data_file1_name}/download")
         assert file_resp.content.decode("utf-8") == data_file1_contents
     else:
         with pytest.raises(HTTPException):
@@ -32,14 +31,14 @@ def test_get_file_not_exists(env, base_filesystem, data_file1):
 
 
 def test_get_file_url(env, base_filesystem, data_file1, data_file1_name):
-    url_resp = client.get(f"{endpoint_url}/{data_file1_name}")
+    url_resp = client.get(f"{endpoint}/{data_file1_name}/url")
     if env == "local":
-        assert True
+        assert url_resp.status_code == 200
     elif env == "s3":
         resp = requests.get(url_resp)
         assert resp == data_file1_contents
 
 
 def test_get_file_url_not_exists(env, base_filesystem, data_file1_name):
-    url_resp = client.get(f"{endpoint_url}/not_exists")
+    url_resp = client.get(f"{endpoint}/not_exists/url")
     assert url_resp.status_code == 404

@@ -1,5 +1,6 @@
 import abc
 import os
+import re
 import shutil
 from fastapi import HTTPException, status
 from fastapi.responses import FileResponse
@@ -42,7 +43,7 @@ class LocalFilesystem(FileSystem):
     ):
         if not os.path.exists(path):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
-        return request_url.replace(url_endpoint, files_endpoint, 1)
+        return re.sub(url_endpoint, files_endpoint, request_url, 1)
 
     def post_file(self, file, path: str):
         if not Path(self.base_post_path) in Path(path).parents:
@@ -80,11 +81,15 @@ class S3Filesystem(FileSystem):
     def get_file_url(
         self, path: str, request_url: str, url_endpoint: str, files_endpoint: str
     ):
+        print("1")
         bucket, path = self._get_bucket_path(path)
+        print("2")
 
         response = self.s3_client.list_objects_v2(Bucket=bucket, Prefix=path)
         if not "Contents" in response:
+            print("2.5")
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+        print("3")
 
         return self.s3_client.generate_presigned_url(
             "get_object",
