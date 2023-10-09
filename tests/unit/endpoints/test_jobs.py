@@ -83,7 +83,6 @@ def test_get_jobs_filtering_memory(populated_full_queue, env_name):
             "environment": env_name,
         },
     )
-    print(res.json())
     assert list(res.json().values())[0]["meta"]["job_id"] == 1
 
 
@@ -241,7 +240,7 @@ def test_job_files_post(env_name, full_jobs, populated_full_queue, base_filesyst
     ).json()
     job_id, job_dequeue = list(job_dequeue.items())[0]
     res = client.post(
-        f"{endpoint}/{job_id}/files",
+        f"{endpoint}/{job_id}/files/upload",
         params={"type": "output", "path": file_name},
         files={
             "file": (
@@ -253,6 +252,5 @@ def test_job_files_post(env_name, full_jobs, populated_full_queue, base_filesyst
     )
     assert res.status_code == 201
     path = f"{job['paths_upload']['output']}/{file_name}"
-    res = client.get(f"/files_url/{job['paths_upload']['output']}/{job_id}/{file_name}")
+    res = client.get(f"/files/{path}/url")
     assert res.status_code == 200
-

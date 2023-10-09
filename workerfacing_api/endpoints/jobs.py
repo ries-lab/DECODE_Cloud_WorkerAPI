@@ -1,6 +1,6 @@
 import enum
 import os
-from fastapi import APIRouter, Depends, File, Query, status, UploadFile
+from fastapi import APIRouter, Depends, File, Query, status, Request, UploadFile
 
 from workerfacing_api.core.queue import JobQueue
 from workerfacing_api.dependencies import filesystem_dep, get_queue
@@ -64,7 +64,11 @@ class UploadType(enum.Enum):
     artifact = "artifact"
 
 
-@router.post("/jobs/{job_id}/files", status_code=status.HTTP_201_CREATED)
+def _upload_path(job, type, path):
+    return os.path.join(job.paths_upload[type.value], path)  # not pathlib.Path since it does s3://x => s3:/x
+
+
+@router.post("/jobs/{job_id}/files/upload", status_code=status.HTTP_201_CREATED)
 async def post_file(
     job_id: int,
     type: UploadType,
@@ -74,7 +78,19 @@ async def post_file(
     queue: JobQueue = Depends(get_queue),
 ):
     job = queue.get_job(job_id)
-    path = os.path.join(
-        job.paths_upload[type.value], str(job_id), path
-    )  # not pathlib.Path since it does s3://x => s3:/x
+    path = _upload_path(job, type, path)
     return filesystem.post_file(file, path)
+
+
+@router.post("/jobs/{job_id}/files/url", status_code=status.HTTP_201_CREATED)
+async def post_file_url(
+    job_id: int,
+    type: UploadType,
+    request: Request,
+    base_path: str = "",
+    filesystem=Depends(filesystem_dep),
+    queue: JobQueue = Depends(get_queue),
+):
+    job = queue.get_job(job_id)
+    path = _upload_path(job, type, base_path)
+    return filesystem.post_file_url(path, request.url._url, "/url", "/upload")

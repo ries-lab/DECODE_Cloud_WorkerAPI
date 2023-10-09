@@ -17,4 +17,4 @@ async def download_file(path: str, filesystem=Depends(filesystem_dep)) -> str:
 async def url_file(
     path: str, request: Request, filesystem=Depends(filesystem_dep)
 ) -> str:
-    return filesystem.get_file_url(path, request.url._url, "/files_url", "/files")
+    return filesystem.get_file_url(path, request.url._url, "/url", "/download")
