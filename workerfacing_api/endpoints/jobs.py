@@ -11,7 +11,7 @@ from workerfacing_api.schemas.queue_jobs import JobSpecs
 router = APIRouter()
 
 
-@router.get("/jobs", response_model=dict[int, JobSpecs])
+@router.get("/jobs", response_model=dict[int, JobSpecs], tags=["Jobs"])
 async def get_jobs(
     hostname: str,
     cpu_cores: int,
@@ -46,12 +46,12 @@ async def get_jobs(
     return jobs
 
 
-@router.get("/jobs/{job_id}/status")
+@router.get("/jobs/{job_id}/status", tags=["Jobs"])
 async def get_job_status(job_id: int, queue: JobQueue = Depends(get_queue)):
     return queue.get_job(job_id).status
 
 
-@router.put("/jobs/{job_id}/status", status_code=status.HTTP_200_OK)
+@router.put("/jobs/{job_id}/status", status_code=status.HTTP_200_OK, tags=["Jobs"])
 async def put_job_status(
     job_id: int, status: JobStates, queue: JobQueue = Depends(get_queue)
 ):
@@ -68,7 +68,7 @@ def _upload_path(job, type, path):
     return os.path.join(job.paths_upload[type.value], path)  # not pathlib.Path since it does s3://x => s3:/x
 
 
-@router.post("/jobs/{job_id}/files/upload", status_code=status.HTTP_201_CREATED)
+@router.post("/jobs/{job_id}/files/upload", status_code=status.HTTP_201_CREATED, tags=["Files"])
 async def post_file(
     job_id: int,
     type: UploadType,
@@ -82,7 +82,7 @@ async def post_file(
     return filesystem.post_file(file, path)
 
 
-@router.post("/jobs/{job_id}/files/url", status_code=status.HTTP_201_CREATED)
+@router.post("/jobs/{job_id}/files/url", status_code=status.HTTP_201_CREATED, tags=["Files"])
 async def post_file_url(
     job_id: int,
     type: UploadType,

@@ -4,21 +4,21 @@ dotenv.load_dotenv()
 from fastapi import FastAPI, Depends
 from fastapi_utils.tasks import repeat_every
 from workerfacing_api.endpoints import files, jobs, jobs_post, access
-from workerfacing_api import dependencies, settings
+from workerfacing_api import dependencies, settings, tags
 
 
-workerfacing_app = FastAPI()
+workerfacing_app = FastAPI(openapi_tags=tags.tags_metadata)
 
 workerfacing_app.include_router(
-    jobs.router, dependencies=[Depends(dependencies.current_user_global_dep)]
+    jobs.router, dependencies=[Depends(dependencies.current_user_global_dep)],
 )
 workerfacing_app.include_router(
-    files.router, dependencies=[Depends(dependencies.current_user_global_dep)]
+    files.router, dependencies=[Depends(dependencies.current_user_global_dep)], tags=["Files"],
 )
-workerfacing_app.include_router(access.router)
+workerfacing_app.include_router(access.router, tags=["Authentication"])
 # private endpoint for user-facing API to call
 workerfacing_app.include_router(
-    jobs_post.router, dependencies=[Depends(dependencies.authorizer)]
+    jobs_post.router, dependencies=[Depends(dependencies.authorizer)], tags=["_Internal"]
 )
 
 
