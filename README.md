@@ -1,4 +1,4 @@
-# DECODE_CloudInterface
+# DECODE_Cloud_WorkerAPI
 
 Code for the worker-facing API for DECODE OpenCloud.  
 The worker-facing API handles communication with the workers, that can pull jobs, download files, update job status, and upload the job results.  

@@ -2,6 +2,7 @@ import boto3
 import typing
 from fastapi import Depends, Header, HTTPException, Request
 from fastapi_cloudauth.cognito import CognitoCurrentUser, CognitoClaims
+from pydantic import Field
 
 from workerfacing_api import settings
 from workerfacing_api.core import filesystem, queue
@@ -33,7 +34,23 @@ authorizer = APIKeyDependency(key=settings.internal_api_key_secret)
 
 
 # Worker authentication
-current_user_dep = CognitoCurrentUser(
+class GroupClaims(CognitoClaims):
+    cognito_groups: list[str] | None = Field(alias="cognito:groups")
+
+
+class WorkerGroupCognitoCurrentUser(CognitoCurrentUser):
+    user_info = GroupClaims
+
+    async def call(self, http_auth):
+        user_info = await super().call(http_auth)
+        if "workers" not in (getattr(user_info, "cognito_groups") or []):
+            raise HTTPException(
+                status_code=403, detail="Not a member of the 'workers' group"
+            )
+        return user_info
+
+
+current_user_dep = WorkerGroupCognitoCurrentUser(
     region=settings.cognito_region,
     userPoolId=settings.cognito_user_pool_id,
     client_id=settings.cognito_client_id,
