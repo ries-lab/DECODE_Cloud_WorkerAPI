@@ -1,6 +1,7 @@
 import dotenv
+import os
 
-dotenv.load_dotenv()
+dotenv.load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 import pytest
 import shutil
 from fastapi import UploadFile
@@ -26,7 +27,11 @@ test_username = "test_user"
 internal_api_key_secret = "test_internal_api_key"
 
 example_app = {"application": "app", "version": "latest", "entrypoint": "test"}
-example_paths_upload = {"output": f"{test_username}/out", "log": f"{test_username}/log", "artifact": f"{test_username}/artifact"}
+example_paths_upload = {
+    "output": f"{test_username}/out",
+    "log": f"{test_username}/log",
+    "artifact": f"{test_username}/artifact",
+}
 
 
 @pytest.fixture(scope="module")
