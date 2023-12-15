@@ -6,7 +6,6 @@ from tests.conftest import (
     env,
 )
 import pytest
-import requests
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from workerfacing_api.main import workerfacing_app
@@ -31,12 +30,11 @@ def test_get_file_not_exists(env, base_filesystem, data_file1):
 
 
 def test_get_file_url(env, base_filesystem, data_file1, data_file1_name):
-    url_resp = client.get(f"{endpoint}/{data_file1_name}/url")
+    req = f"{endpoint}/{data_file1_name}/url"
+    url_resp = client.get(req)
+    assert url_resp.status_code == 200
     if env == "local":
-        assert url_resp.status_code == 200
-    elif env == "s3":
-        resp = requests.get(url_resp)
-        assert resp == data_file1_contents
+        assert req.replace("/url", "/download") in url_resp.text
 
 
 def test_get_file_url_not_exists(env, base_filesystem, data_file1_name):

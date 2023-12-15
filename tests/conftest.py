@@ -61,9 +61,6 @@ def base_filesystem(env, monkeypatch_module):
     region_name = "eu-central-1"
     global base_dir
 
-    if env == "local":
-        base_dir = f"./{base_dir}"
-
     monkeypatch_module.setattr(
         settings,
         "user_data_root_path",

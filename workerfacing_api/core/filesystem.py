@@ -21,8 +21,10 @@ class FileSystem(abc.ABC):
 
     def post_file(self, file, path: str):
         raise NotImplementedError
-    
-    def post_file_url(self, path: str, request_url: str, url_endpoint: str, files_endpoint: str):
+
+    def post_file_url(
+        self, path: str, request_url: str, url_endpoint: str, files_endpoint: str
+    ):
         raise NotImplementedError()
 
 
@@ -60,14 +62,19 @@ class LocalFilesystem(FileSystem):
                 shutil.copyfileobj(file.file, f)
         finally:
             file.file.close()
-    
-    def post_file_url(self, path: str, request_url: str, url_endpoint: str, files_endpoint: str):
+
+    def post_file_url(
+        self, path: str, request_url: str, url_endpoint: str, files_endpoint: str
+    ):
         if not Path(self.base_post_path) in Path(path).parents:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Path is not in base directory",
             )
-        return {"url": re.sub(url_endpoint, files_endpoint, request_url, 1), "fields": {}}
+        return {
+            "url": re.sub(url_endpoint, files_endpoint, request_url, 1),
+            "fields": {},
+        }
 
 
 class S3Filesystem(FileSystem):
@@ -98,6 +105,7 @@ class S3Filesystem(FileSystem):
         if not "Contents" in response:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
+        print(bucket, path)
         return self.s3_client.generate_presigned_url(
             "get_object",
             Params={"Bucket": bucket, "Key": path},
@@ -107,8 +115,10 @@ class S3Filesystem(FileSystem):
     def post_file(self, file, path: str):
         bucket, path = self._get_bucket_path(path)
         self.s3_client.upload_fileobj(file.file, bucket, path)
-    
-    def post_file_url(self, path: str, request_url: str, url_endpoint: str, files_endpoint: str):
+
+    def post_file_url(
+        self, path: str, request_url: str, url_endpoint: str, files_endpoint: str
+    ):
         bucket, path = self._get_bucket_path(path)
         if path[-1] != "/":
             path = path + "/"
@@ -116,6 +126,8 @@ class S3Filesystem(FileSystem):
             Bucket=bucket,
             Key=path + "${filename}",
             Fields=None,
-            Conditions=[["starts-with", "$key", path]],  # can be used for multiple uploads to folder
+            Conditions=[
+                ["starts-with", "$key", path]
+            ],  # can be used for multiple uploads to folder
             ExpiresIn=60 * 10,
         )
