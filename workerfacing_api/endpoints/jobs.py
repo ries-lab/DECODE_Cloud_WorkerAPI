@@ -53,9 +53,12 @@ async def get_job_status(job_id: int, queue: JobQueue = Depends(get_queue)):
 
 @router.put("/jobs/{job_id}/status", status_code=status.HTTP_200_OK, tags=["Jobs"])
 async def put_job_status(
-    job_id: int, status: JobStates, queue: JobQueue = Depends(get_queue)
+    job_id: int,
+    status: JobStates,
+    runtime_details: str | None = None,
+    queue: JobQueue = Depends(get_queue),
 ):
-    return queue.update_job_status(job_id, status)
+    return queue.update_job_status(job_id, status, runtime_details)
 
 
 class UploadType(enum.Enum):
@@ -65,10 +68,14 @@ class UploadType(enum.Enum):
 
 
 def _upload_path(job, type, path):
-    return os.path.join(job.paths_upload[type.value], path)  # not pathlib.Path since it does s3://x => s3:/x
+    return os.path.join(
+        job.paths_upload[type.value], path
+    )  # not pathlib.Path since it does s3://x => s3:/x
 
 
-@router.post("/jobs/{job_id}/files/upload", status_code=status.HTTP_201_CREATED, tags=["Files"])
+@router.post(
+    "/jobs/{job_id}/files/upload", status_code=status.HTTP_201_CREATED, tags=["Files"]
+)
 async def post_file(
     job_id: int,
     type: UploadType,
@@ -82,7 +89,9 @@ async def post_file(
     return filesystem.post_file(file, path)
 
 
-@router.post("/jobs/{job_id}/files/url", status_code=status.HTTP_201_CREATED, tags=["Files"])
+@router.post(
+    "/jobs/{job_id}/files/url", status_code=status.HTTP_201_CREATED, tags=["Files"]
+)
 async def post_file_url(
     job_id: int,
     type: UploadType,

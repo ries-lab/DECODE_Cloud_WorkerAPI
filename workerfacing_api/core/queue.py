@@ -93,7 +93,9 @@ class JobQueue(ABC):
         """Get job information, not necessarily in queue."""
         raise NotImplementedError
 
-    def update_job_status(self, job_id: int, status: JobStates):
+    def update_job_status(
+        self, job_id: int, status: JobStates, runtime_details: str | None = None
+    ):
         """Update the job status."""
         raise NotImplementedError
 
@@ -273,7 +275,9 @@ class RDSJobQueue(JobQueue):
     def __init__(self, db_url: str, max_retries: int = 10, retry_wait: int = 60):
         self.db_url = db_url
         if self.db_url.startswith("sqlite"):
-            self.update_lock = UpdateLock()  # necessary since sqlite does not support row-level locking
+            self.update_lock = (
+                UpdateLock()
+            )  # necessary since sqlite does not support row-level locking
         self.engine = self._get_engine(self.db_url, max_retries, retry_wait)
         self.table_name = QueuedJob.__tablename__
 
@@ -413,17 +417,21 @@ class RDSJobQueue(JobQueue):
             )
         return res.first()
 
-    def _update_job_status(self, session, job, status: JobStates):
+    def _update_job_status(
+        self, session, job, status: JobStates, runtime_details: str | None = None
+    ):
         job.status = status.value
         job.last_updated = datetime.datetime.utcnow()
         session.add(job)
         session.commit()
-        job_tracking.update_job(job.job["meta"]["job_id"], status)
+        job_tracking.update_job(job.job["meta"]["job_id"], status, runtime_details)
 
-    def update_job_status(self, job_id: int, status: JobStates):
+    def update_job_status(
+        self, job_id: int, status: JobStates, runtime_details: str | None = None
+    ):
         with Session(self.engine) as session:
             job = self.get_job(job_id, session, lock=True)
-            self._update_job_status(session, job, status)
+            self._update_job_status(session, job, status, runtime_details)
 
     def handle_timeouts(self, max_retries: int, timeout_failure: int):
         n_retry, n_failed = 0, 0
@@ -442,11 +450,13 @@ class RDSJobQueue(JobQueue):
                 # TODO: increase priority?
                 job.num_retries += 1
                 session.add(job)
-                self.update_job_status(job.id, JobStates.queued)
+                self.update_job_status(
+                    job.id, JobStates.queued, f"timeout {job.num_retries}"
+                )
                 n_retry += 1
             jobs_failed = jobs_timeout.filter(QueuedJob.num_retries >= max_retries)
             for job in jobs_failed:
-                self.update_job_status(job.id, JobStates.error)
+                self.update_job_status(job.id, JobStates.error, "max retries reached")
                 n_failed += 1
             session.commit()
             return n_retry, n_failed
