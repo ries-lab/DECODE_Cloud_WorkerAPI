@@ -9,6 +9,11 @@ import pytest
 import requests
 from starlette.responses import FileResponse
 from fastapi import HTTPException
+from types import SimpleNamespace
+
+
+def _mock_request(url):
+    return SimpleNamespace(url=SimpleNamespace(_url=url), headers={})
 
 
 def test_get_file(env, base_filesystem, data_file1, data_file1_name):
@@ -28,10 +33,10 @@ def test_get_file_not_exists(env, base_filesystem, data_file1):
 def test_get_file_url(env, base_filesystem, data_file1, data_file1_name):
     url = base_filesystem.get_file_url(
         data_file1_name,
-        f"http://example.com/test_url/{data_file1_name}",
+        _mock_request(f"http://example.com/test_url/{data_file1_name}"),
         "test_url",
         "files",
-    )
+    )["url"]
     if env == "local":
         assert url == f"http://example.com/files/{data_file1_name}"
     elif env == "s3":
@@ -43,7 +48,7 @@ def test_get_file_url_not_exists(env, base_filesystem, data_file1_name):
     with pytest.raises(HTTPException):
         base_filesystem.get_file_url(
             data_file1_name + "_fake",
-            f"http://example.com/test_url/not_exists",
+            _mock_request("http://example.com/test_url/not_exists"),
             "test_url",
             "files",
         )

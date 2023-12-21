@@ -1,11 +1,13 @@
 import enum
 import os
+import re
 from fastapi import APIRouter, Depends, File, Query, status, Request, UploadFile
 
 from workerfacing_api.core.queue import JobQueue
 from workerfacing_api.dependencies import filesystem_dep, get_queue
 from workerfacing_api.schemas.rds_models import JobStates
 from workerfacing_api.schemas.queue_jobs import JobSpecs
+from workerfacing_api.schemas.files import FileHTTPRequest
 
 
 router = APIRouter()
@@ -90,7 +92,10 @@ async def post_file(
 
 
 @router.post(
-    "/jobs/{job_id}/files/url", status_code=status.HTTP_201_CREATED, tags=["Files"]
+    "/jobs/{job_id}/files/url",
+    status_code=status.HTTP_201_CREATED,
+    response_model=FileHTTPRequest,
+    tags=["Files"],
 )
 async def post_file_url(
     job_id: int,
@@ -102,4 +107,4 @@ async def post_file_url(
 ):
     job = queue.get_job(job_id)
     path = _upload_path(job, type, base_path)
-    return filesystem.post_file_url(path, request.url._url, "/url", "/upload")
+    return filesystem.post_file_url(path, request, re.escape("/url") + "$", "/upload")

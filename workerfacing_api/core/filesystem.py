@@ -22,9 +22,7 @@ class FileSystem(abc.ABC):
     def post_file(self, file, path: str):
         raise NotImplementedError
 
-    def post_file_url(
-        self, path: str, request_url: str, url_endpoint: str, files_endpoint: str
-    ):
+    def post_file_url(self, path: str, request, url_endpoint: str, files_endpoint: str):
         raise NotImplementedError()
 
 
@@ -43,12 +41,14 @@ class LocalFilesystem(FileSystem):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
         return FileResponse(path)
 
-    def get_file_url(
-        self, path: str, request_url: str, url_endpoint: str, files_endpoint: str
-    ):
+    def get_file_url(self, path: str, request, url_endpoint: str, files_endpoint: str):
         if not os.path.exists(path):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
-        return re.sub(url_endpoint, files_endpoint, request_url, 1)
+        return {
+            "url": re.sub(url_endpoint, files_endpoint, request.url._url),
+            "headers": {"authorization": request.headers.get("authorization")},
+            "method": "get",
+        }
 
     def post_file(self, file, path: str):
         if not Path(self.base_post_path) in Path(path).parents:
@@ -63,17 +63,16 @@ class LocalFilesystem(FileSystem):
         finally:
             file.file.close()
 
-    def post_file_url(
-        self, path: str, request_url: str, url_endpoint: str, files_endpoint: str
-    ):
+    def post_file_url(self, path: str, request, url_endpoint: str, files_endpoint: str):
         if not Path(self.base_post_path) in Path(path).parents:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Path is not in base directory",
             )
         return {
-            "url": re.sub(url_endpoint, files_endpoint, request_url, 1),
-            "fields": {},
+            "url": re.sub(url_endpoint, files_endpoint, request.url._url),
+            "headers": {"authorization": request.headers.get("authorization")},
+            "method": "post",
         }
 
 
@@ -96,33 +95,31 @@ class S3Filesystem(FileSystem):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
         return bucket, path
 
-    def get_file_url(
-        self, path: str, request_url: str, url_endpoint: str, files_endpoint: str
-    ):
+    def get_file_url(self, path: str, request, url_endpoint: str, files_endpoint: str):
         bucket, path = self._get_bucket_path(path)
 
         response = self.s3_client.list_objects_v2(Bucket=bucket, Prefix=path)
         if not "Contents" in response:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
-        print(bucket, path)
-        return self.s3_client.generate_presigned_url(
-            "get_object",
-            Params={"Bucket": bucket, "Key": path},
-            ExpiresIn=60 * 10,
-        )
+        return {
+            "url": self.s3_client.generate_presigned_url(
+                "get_object",
+                Params={"Bucket": bucket, "Key": path},
+                ExpiresIn=60 * 10,
+            ),
+            "method": "get",
+        }
 
     def post_file(self, file, path: str):
         bucket, path = self._get_bucket_path(path)
         self.s3_client.upload_fileobj(file.file, bucket, path)
 
-    def post_file_url(
-        self, path: str, request_url: str, url_endpoint: str, files_endpoint: str
-    ):
+    def post_file_url(self, path: str, request, url_endpoint: str, files_endpoint: str):
         bucket, path = self._get_bucket_path(path)
         if path[-1] != "/":
             path = path + "/"
-        return self.s3_client.generate_presigned_post(
+        ret = self.s3_client.generate_presigned_post(
             Bucket=bucket,
             Key=path + "${filename}",
             Fields=None,
@@ -131,3 +128,4 @@ class S3Filesystem(FileSystem):
             ],  # can be used for multiple uploads to folder
             ExpiresIn=60 * 10,
         )
+        return {"url": ret["url"], "data": ret["fields"], "method": "post"}

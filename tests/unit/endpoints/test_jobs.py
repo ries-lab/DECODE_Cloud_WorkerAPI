@@ -2,7 +2,13 @@ import pytest
 import time
 from fastapi.testclient import TestClient
 from io import BytesIO
-from tests.conftest import monkeypatch_module, base_filesystem, patch_update_job, base_dir, test_username
+from tests.conftest import (
+    monkeypatch_module,
+    base_filesystem,
+    patch_update_job,
+    base_dir,
+    test_username,
+)
 from tests.unit.core.test_queue import (
     jobs,
     full_jobs,
@@ -45,8 +51,7 @@ def test_get_jobs(populated_full_queue, env_name, patch_update_job):
             "environment": env_name,
         },
     )
-    patch_update_job.assert_called_once_with(1, JobStates.pulled)
-
+    patch_update_job.assert_called_once_with(1, JobStates.pulled, None)
 
 
 def test_get_jobs_required_params(populated_full_queue, env_name):
