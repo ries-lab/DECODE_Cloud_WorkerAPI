@@ -38,9 +38,9 @@ class AppSpecs(BaseModel):
 
 class HandlerSpecs(BaseModel):
     image_url: str
-    aws_job_def: str | None = None
     image_name: str | None = None
     image_version: str | None = None
+    entrypoint: str | None = None
     files_down: dict[str, str] | None = None
     files_up: dict[OutputEndpoints, str] | None = None
 
