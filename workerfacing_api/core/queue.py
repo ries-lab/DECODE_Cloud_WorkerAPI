@@ -438,8 +438,10 @@ class RDSJobQueue(JobQueue):
         time_now = datetime.datetime.utcnow()
         with Session(self.engine) as session:
             jobs_timeout = session.query(QueuedJob).filter(
-                (QueuedJob.status == JobStates.running.value)
-                | (QueuedJob.status == JobStates.pulled.value),
+                (QueuedJob.status == JobStates.pulled.value)
+                | (QueuedJob.status == JobStates.preprocessing.value)
+                | (QueuedJob.status == JobStates.running.value)
+                | (QueuedJob.status == JobStates.postprocessing.value),
                 (
                     QueuedJob.last_updated
                     < time_now - datetime.timedelta(seconds=timeout_failure)

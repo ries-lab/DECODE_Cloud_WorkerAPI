@@ -9,8 +9,10 @@ Base = declarative_base()
 
 class JobStates(enum.Enum):
     queued = "queued"
+    preprocessing = "preprocessing"
     pulled = "pulled"
     running = "running"
+    postprocessing = "postprocessing"
     finished = "finished"
     error = "error"
 
