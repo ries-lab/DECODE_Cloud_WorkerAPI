@@ -311,7 +311,7 @@ class RDSJobQueue(JobQueue):
 
     def enqueue(self, environment: str | None, item: dict):
         with Session(self.engine) as session:
-            hw_specs = item.get("hardware") or {}
+            hw_specs = item["job"].get("hardware") or {}
             session.add(
                 QueuedJob(
                     job=item["job"],

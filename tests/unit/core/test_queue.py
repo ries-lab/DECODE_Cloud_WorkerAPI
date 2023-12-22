@@ -29,6 +29,7 @@ def jobs(env, base_filesystem):
     common_base = {
         "app": example_app,
         "handler": {"image_url": "u", "files_up": {"output": "out"}},
+        "hardware": {},
     }
     job0 = {
         "job": {**common_base, "meta": {"job_id": 0, "date_created": time_now}},
@@ -51,41 +52,30 @@ def jobs(env, base_filesystem):
 
 @pytest.fixture(scope="function")
 def full_jobs(jobs):
-    job0 = {
-        **jobs[0],
-        "hardware": {
-            "cpu_cores": 3,
-            "memory": 2,
-            "gpu_model": "gpu_model",
-            "gpu_archi": "gpu_archi",
-            "gpu_mem": 0,
-        },
-        "group": None,
-        "priority": 5,
+    job0, job1, job2, job3 = jobs
+
+    job0["job"]["hardware"] = {
+        "cpu_cores": 3,
+        "memory": 2,
+        "gpu_model": "gpu_model",
+        "gpu_archi": "gpu_archi",
+        "gpu_mem": 0,
     }
-    job1 = {
-        **jobs[1],
-        "hardware": {
-            "cpu_cores": 1,
-            "memory": 0,
-            "gpu_model": None,
-            "gpu_archi": None,
-            "gpu_mem": None,
-        },
-        "group": None,
-        "priority": 10,
+    job0.update({"group": None, "priority": 5})
+
+    job1["job"]["hardware"] = {
+        "cpu_cores": 1,
+        "memory": 0,
+        "gpu_model": None,
+        "gpu_archi": None,
+        "gpu_mem": None,
     }
-    job2 = {
-        **jobs[2],
-        "hardware": {},
-        "group": "group",
-        "priority": 1,
-    }
-    job3 = {
-        **jobs[3],
-        "hardware": {},
-        "priority": 1,
-    }
+    job1.update({"group": None, "priority": 10})
+
+    job2.update({"group": "group", "priority": 1})
+
+    job3.update({"priority": 1})
+
     return job0, job1, job2, job3
 
 
