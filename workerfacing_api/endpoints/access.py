@@ -1,5 +1,5 @@
 import enum
-from fastapi import APIRouter
+from fastapi import APIRouter, status
 from workerfacing_api.settings import cognito_user_pool_id, cognito_public_client_id
 
 
@@ -7,7 +7,7 @@ router = APIRouter()
 
 
 class AccessType(enum.Enum):
-    COGNITO="cognito"
+    COGNITO = "cognito"
 
 
 @router.get("/access_info", response_model=dict[AccessType, dict])

@@ -48,12 +48,12 @@ async def get_jobs(
     return jobs
 
 
-@router.get("/jobs/{job_id}/status", tags=["Jobs"])
+@router.get("/jobs/{job_id}/status", tags=["Jobs"], response_model=JobStates)
 async def get_job_status(job_id: int, queue: JobQueue = Depends(get_queue)):
     return queue.get_job(job_id).status
 
 
-@router.put("/jobs/{job_id}/status", status_code=status.HTTP_200_OK, tags=["Jobs"])
+@router.put("/jobs/{job_id}/status", tags=["Jobs"])
 async def put_job_status(
     job_id: int,
     status: JobStates,
@@ -78,7 +78,7 @@ def _upload_path(job, type, path):
 @router.post(
     "/jobs/{job_id}/files/upload", status_code=status.HTTP_201_CREATED, tags=["Files"]
 )
-async def post_file(
+async def upload_file(
     job_id: int,
     type: UploadType,
     path: str,
@@ -97,7 +97,7 @@ async def post_file(
     response_model=FileHTTPRequest,
     tags=["Files"],
 )
-async def post_file_url(
+async def get_upload_presigned_url(
     job_id: int,
     type: UploadType,
     request: Request,

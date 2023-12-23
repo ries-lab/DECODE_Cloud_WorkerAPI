@@ -1,12 +1,17 @@
 # DECODE_Cloud_WorkerAPI
 
-Code for the worker-facing API for DECODE OpenCloud.  
-The worker-facing API handles communication with the workers, that can pull jobs, download files, update job status, and upload the job results.  
+Code for the worker-facing API of DECODE OpenCloud.  
 
+The worker-facing API handles the communication with the workers.
+The authenticated workers can:
+ * handle jobs
+   * pull jobs
+   * update job status (on the background, the API checks whether pulled jobs have not received updates for some time and puts them back in the queue)
+   * upload job results (via pre-signed urls)
+ * download files (via pre-signed urls)
 
-## Endpoints
-\#ToDo: endpoints description.
-
+Behind the scenes, the API communicates with the user-facing API of DECODE OpenCloud.
+It forwards the status updates to the user-facing API, and gets new jobs from it.
 
 ## Run locally
 1. Copy the `.env.example` file to a `.env` file to the root of the directory.
@@ -30,3 +35,4 @@ The worker-facing API handles communication with the workers, that can pull jobs
       - `COGNITO_REGION`: Region for the user pool.
       - `COGNITO_SECRET`: Secret for the client. Can also be an AWS SecretsManager secret.
 3. Start the user-facing API with `uvicorn workerfacing_api.main:workerfacing_app --reload --port 8001`.
+4. You can view the API documentation at `http://localhost:8001/docs`.
