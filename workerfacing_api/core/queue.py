@@ -32,6 +32,14 @@ class UpdateLock:
         self.lock.release()
 
 
+class MockUpdateLock:
+    def __enter__(self):
+        pass
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+
 class JobQueue(ABC):
     """Abstract multi-environment job queue."""
 
@@ -274,10 +282,9 @@ class RDSJobQueue(JobQueue):
 
     def __init__(self, db_url: str, max_retries: int = 10, retry_wait: int = 60):
         self.db_url = db_url
-        if self.db_url.startswith("sqlite"):
-            self.update_lock = (
-                UpdateLock()
-            )  # necessary since sqlite does not support row-level locking
+        self.update_lock = (
+            UpdateLock() if self.db_url.startswith("sqlite") else MockUpdateLock()
+        )
         self.engine = self._get_engine(self.db_url, max_retries, retry_wait)
         self.table_name = QueuedJob.__tablename__
 

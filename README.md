@@ -31,8 +31,8 @@ It forwards the status updates to the user-facing API, and gets new jobs from it
       - `INTERNAL_API_KEY_SECRET`: secret to authenticate to the user-facing API, and for the user-facing API to connect to this API, for internal endpoints. Can also be an AWS SecretsManager secret.
     - Authentication (at the moment, only AWS Cognito is supported):
       - `COGNITO_CLIENT_ID`: Cognito client ID.
+      - `COGNITO_SECRET`: Secret for the client (if required). Can also be an AWS SecretsManager secret.
       - `COGNITO_USER_POOL_ID`: Cognito user pool ID.
       - `COGNITO_REGION`: Region for the user pool.
-      - `COGNITO_SECRET`: Secret for the client. Can also be an AWS SecretsManager secret.
 3. Start the user-facing API with `uvicorn workerfacing_api.main:workerfacing_app --reload --port 8001`.
 4. You can view the API documentation at `http://localhost:8001/docs`.
