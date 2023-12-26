@@ -14,3 +14,4 @@ async def post_job(job: QueueJob, queue: JobQueue = Depends(get_queue)):
     if job.environment is None:
         job.environment = EnvironmentTypes.any
     queue.enqueue(environment=job.environment.value, item=jsonable_encoder(job))
+    return job
