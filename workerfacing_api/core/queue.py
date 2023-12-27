@@ -351,12 +351,12 @@ class RDSJobQueue(JobQueue):
     ) -> Tuple[dict | None, tuple[int, str] | None]:
         if groups is None:
             groups = []
-        if "<w>" in hostname or "<\w>" in hostname:
+        if "WORKER" in hostname or "/WORKER" in hostname:
             raise HTTPException(
                 status_code=status.HTTP_412_PRECONDITION_FAILED,
-                detail="Hostname cannot contain <w> or <\w> for technical reasons.",
+                detail="Hostname cannot contain WORKER or /WORKER for technical reasons.",
             )
-        worker_str = f"<w>{hostname}<\w>"
+        worker_str = f"WORKER{hostname}/WORKER"
         with Session(self.engine) as session:
             query = session.query(QueuedJob)
 
@@ -460,7 +460,9 @@ class RDSJobQueue(JobQueue):
                 job.num_retries += 1
                 session.add(job)
                 self.update_job_status(
-                    job.id, JobStates.queued, f"timeout {job.num_retries}"
+                    job.id,
+                    JobStates.queued,
+                    f"timeout {job.num_retries} (workers tried: {job.workers})",
                 )
                 n_retry += 1
             jobs_failed = jobs_timeout.filter(QueuedJob.num_retries >= max_retries)
