@@ -440,7 +440,13 @@ class RDSJobQueue(JobQueue):
         job.last_updated = datetime.datetime.utcnow()
         session.add(job)
         session.commit()
-        job_tracking.update_job(job.job["meta"]["job_id"], status, runtime_details)
+        try:
+            job_tracking.update_job(job.job["meta"]["job_id"], status, runtime_details)
+        except ValueError as e:
+            # job probably deleted by user
+            session.delete(job)
+            session.commit()
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=e)
 
     def update_job_status(
         self,

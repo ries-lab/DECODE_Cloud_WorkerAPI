@@ -1,5 +1,4 @@
 import requests
-from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
 
 import workerfacing_api.settings as settings
@@ -19,8 +18,8 @@ def update_job(
         json=jsonable_encoder(body),
         headers={"x-api-key": settings.internal_api_key_secret},
     )
-    if not str(resp.status_code).startswith("2"):
-        raise HTTPException(
-            status_code=resp.status_code,
-            detail=f"Error while updating job {job_id}. Traceback: \n{resp.text}.",
+    if resp.status_code == 404:
+        raise ValueError(
+            f"Job {job_id} not found; it was probably deleted by the user."
         )
+    resp.raise_for_status()
