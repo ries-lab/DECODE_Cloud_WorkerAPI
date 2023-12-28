@@ -351,12 +351,11 @@ class RDSJobQueue(JobQueue):
     ) -> Tuple[dict | None, tuple[int, str] | None]:
         if groups is None:
             groups = []
-        if "WORKER" in hostname or "/WORKER" in hostname:
+        if ";" in hostname:
             raise HTTPException(
                 status_code=status.HTTP_412_PRECONDITION_FAILED,
-                detail="Hostname cannot contain WORKER or /WORKER for technical reasons.",
+                detail="Hostname cannot contain ; for technical reasons.",
             )
-        worker_str = f"WORKER{hostname}/WORKER"
         with Session(self.engine) as session:
             query = session.query(QueuedJob)
 
@@ -382,7 +381,7 @@ class RDSJobQueue(JobQueue):
                 )
                 if settings.retry_different:
                     # only if worker did not already try running this job
-                    ret = ret.filter(not_(QueuedJob.workers.contains(worker_str)))
+                    ret = ret.filter(not_(QueuedJob.workers.contains(hostname)))
                 ret = ret.order_by(QueuedJob.priority.desc()).order_by(
                     QueuedJob.creation_timestamp.asc()
                 )
@@ -393,12 +392,12 @@ class RDSJobQueue(JobQueue):
             if job is None:
                 job = filter_sort_query(query)
             if job:
-                return {"job_id": job.id, **job.job}, (job.id, worker_str)
+                return {"job_id": job.id, **job.job}, (job.id, hostname)
         return None, None
 
     def pop(self, environment: str, receipt_handle: tuple[int, str]) -> bool:
         with self.update_lock:
-            job_id, worker_str = receipt_handle
+            job_id, hostname = receipt_handle
             with Session(self.engine) as session:
                 try:
                     job = self.get_job(job_id, session, lock=True)
@@ -406,14 +405,16 @@ class RDSJobQueue(JobQueue):
                     return False
                 if job.status != JobStates.queued.value:
                     return False
-                job.workers += worker_str
+                job.workers = ";".join(job.workers.split(";") + [hostname])
                 self._update_job_status(session, job, status=JobStates.pulled)
             return True
 
-    def get_job(self, job_id: int, session=None, lock: bool = False):
+    def get_job(
+        self, job_id: int, session=None, lock: bool = False, hostname: str | None = None
+    ):
         if not session:
             with Session(self.engine) as session:
-                return self.get_job(job_id, session, lock)
+                return self.get_job(job_id, session, lock, hostname)
         res = session.query(QueuedJob).filter(QueuedJob.id == job_id)
         if lock:
             res = res.with_for_update(of=QueuedJob, nowait=True)
@@ -422,6 +423,14 @@ class RDSJobQueue(JobQueue):
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Job with id {job_id} not found (might have been pulled by another worker)",
             )
+        job = res.first()
+        if hostname:
+            workers = job.workers.split(";")
+            if not workers or hostname != workers[-1]:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Job with id {job_id} is not assigned to worker {hostname}",
+                )
         return res.first()
 
     def _update_job_status(
@@ -434,10 +443,14 @@ class RDSJobQueue(JobQueue):
         job_tracking.update_job(job.job["meta"]["job_id"], status, runtime_details)
 
     def update_job_status(
-        self, job_id: int, status: JobStates, runtime_details: str | None = None
+        self,
+        job_id: int,
+        status: JobStates,
+        runtime_details: str | None = None,
+        hostname: str | None = None,
     ):
         with Session(self.engine) as session:
-            job = self.get_job(job_id, session, lock=True)
+            job = self.get_job(job_id, session, lock=True, hostname=hostname)
             self._update_job_status(session, job, status, runtime_details)
 
     def handle_timeouts(self, max_retries: int, timeout_failure: int):

@@ -1,5 +1,6 @@
 import pytest
 import time
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from io import BytesIO
 from tests.conftest import (
@@ -36,32 +37,17 @@ def queue(monkeypatch_module, tmpdir):
     queue_.delete()
 
 
-@pytest.fixture(autouse=True)
-def env_name():
-    return "local"
-
-
-def test_get_jobs(populated_full_queue, env_name, patch_update_job):
+def test_get_jobs(populated_full_queue, patch_update_job):
     res = client.get(
         endpoint,
-        params={
-            "hostname": "i",
-            "cpu_cores": 999,
-            "memory": 999,
-            "environment": env_name,
-        },
+        params={"cpu_cores": 999, "memory": 999},
     )
     patch_update_job.assert_called_once_with(1, JobStates.pulled, None)
 
 
-def test_get_jobs_required_params(populated_full_queue, env_name):
-    required = ["hostname", "cpu_cores", "memory", "environment"]
-    base_query_params = {
-        "hostname": "i",
-        "cpu_cores": 2,
-        "memory": 1,
-        "environment": env_name,
-    }
+def test_get_jobs_required_params(populated_full_queue):
+    required = ["cpu_cores", "memory"]
+    base_query_params = {"cpu_cores": 2, "memory": 1}
     for param in required:
         query_params = base_query_params.copy()
         del query_params[param]
@@ -70,178 +56,116 @@ def test_get_jobs_required_params(populated_full_queue, env_name):
         assert res.json()["detail"][0]["type"] == "value_error.missing"
 
 
-def test_get_jobs_filtering_cpu_cores(populated_full_queue, env_name):
+def test_get_jobs_filtering_cpu_cores(populated_full_queue):
     res = client.get(
         endpoint,
-        params={"hostname": "i", "cpu_cores": 2, "memory": 1, "environment": env_name},
+        params={"cpu_cores": 2, "memory": 1},
     )
     assert list(res.json().values())[0]["meta"]["job_id"] == 1
 
 
-def test_get_jobs_filtering_memory(populated_full_queue, env_name):
+def test_get_jobs_filtering_memory(populated_full_queue):
     res = client.get(
         endpoint,
-        params={
-            "hostname": "i",
-            "cpu_cores": 999,
-            "memory": 1,
-            "environment": env_name,
-        },
+        params={"cpu_cores": 999, "memory": 1},
     )
     assert list(res.json().values())[0]["meta"]["job_id"] == 1
 
 
-def test_get_jobs_filtering_gpu_model(populated_full_queue, env_name):
+def test_get_jobs_filtering_gpu_model(populated_full_queue):
     res = client.get(
         endpoint,
-        params={
-            "hostname": "i",
-            "cpu_cores": 999,
-            "memory": 999,
-            "gpu_model": "gpu_model",
-            "environment": env_name,
-        },
+        params={"cpu_cores": 999, "memory": 999, "gpu_model": "gpu_model"},
     )
     assert list(res.json().values())[0]["meta"]["job_id"] == 1
 
 
-def test_get_jobs_filtering_gpu_archi(populated_full_queue, env_name):
+def test_get_jobs_filtering_gpu_archi(populated_full_queue):
     res = client.get(
         endpoint,
-        params={
-            "hostname": "i",
-            "cpu_cores": 999,
-            "memory": 999,
-            "gpu_archi": "gpu_archi",
-            "environment": env_name,
-        },
+        params={"cpu_cores": 999, "memory": 999, "gpu_archi": "gpu_archi"},
     )
     assert list(res.json().values())[0]["meta"]["job_id"] == 1
 
 
-def test_get_jobs_priorities(populated_full_queue, env_name):
+def test_get_jobs_priorities(populated_full_queue):
     # group priority
     res = client.get(
         endpoint,
-        params={
-            "hostname": "i",
-            "cpu_cores": 999,
-            "memory": 999,
-            "groups": ["group", "another group"],
-            "environment": env_name,
-        },
+        params={"cpu_cores": 999, "memory": 999, "groups": ["group", "another group"]},
     )
     assert list(res.json().values())[0]["meta"]["job_id"] == 2
     # job priority
     res = client.get(
         endpoint,
-        params={
-            "hostname": "i",
-            "cpu_cores": 999,
-            "memory": 999,
-            "environment": env_name,
-        },
+        params={"cpu_cores": 999, "memory": 999},
     )
     assert list(res.json().values())[0]["meta"]["job_id"] == 1
     res = client.get(
         endpoint,
-        params={
-            "hostname": "i",
-            "cpu_cores": 999,
-            "memory": 999,
-            "environment": env_name,
-        },
+        params={"cpu_cores": 999, "memory": 999},
     )
     assert list(res.json().values())[0]["meta"]["job_id"] == 3
 
 
-def test_get_jobs_dequeue_old(populated_queue, env_name):
+def test_get_jobs_dequeue_old(populated_queue):
     # older_than does not apply when the right environment is selected
     # not old enough
     res = client.get(
         endpoint,
-        params={
-            "hostname": "i",
-            "cpu_cores": 999,
-            "memory": 999,
-            "environment": env_name,
-            "older_than": 5,
-        },
+        params={"cpu_cores": 999, "memory": 999, "older_than": 5},
     )
     assert len(res.json()) == 1
     res = client.get(
         endpoint,
-        params={
-            "hostname": "i",
-            "cpu_cores": 999,
-            "memory": 999,
-            "environment": env_name,
-            "older_than": 5,
-        },
+        params={"cpu_cores": 999, "memory": 999, "older_than": 5},
     )
     assert len(res.json()) == 1
     res = client.get(
         endpoint,
-        params={
-            "hostname": "i",
-            "cpu_cores": 999,
-            "memory": 999,
-            "environment": env_name,
-            "older_than": 5,
-        },
+        params={"cpu_cores": 999, "memory": 999, "older_than": 5},
     )
     assert len(res.json()) == 0
     # old enough
     time.sleep(5)
     res = client.get(
         endpoint,
-        params={
-            "hostname": "i",
-            "cpu_cores": 999,
-            "memory": 999,
-            "environment": env_name,
-            "older_than": 5,
-        },
+        params={"cpu_cores": 999, "memory": 999, "older_than": 5},
     )
     assert len(res.json()) == 1
 
 
-def test_get_job_status(populated_full_queue, env_name):
+def test_get_job_status(populated_full_queue):
     res = client.get(f"{endpoint}/1/status")
     assert res.json() == "queued"
     # dequeue
     res = client.get(
         endpoint,
-        params={
-            "hostname": "i",
-            "cpu_cores": 999,
-            "memory": 999,
-            "environment": env_name,
-        },
+        params={"cpu_cores": 999, "memory": 999},
     )
     res = client.get(f"{endpoint}/{list(res.json().keys())[0]}/status")
     assert res.json() == "pulled"
 
 
-def test_put_job_status(populated_full_queue, env_name):
+def test_put_job_status(populated_full_queue):
+    # job needs to be pulled in order to update its status
     res = client.put(f"{endpoint}/1/status", params={"status": "running"})
+    assert str(res.status_code).startswith("4")
+    resp = client.get(endpoint, params={"cpu_cores": 999, "memory": 999})
+    job_id = list(resp.json().keys())[0]
+    res = client.put(f"{endpoint}/{job_id}/status", params={"status": "running"})
     assert res.status_code == 200
-    res = client.get(f"{endpoint}/1/status")
+    res = client.get(f"{endpoint}/{job_id}/status")
     assert res.json() == "running"
 
 
-def test_job_files_post(env_name, full_jobs, populated_full_queue, base_filesystem):
+def test_job_files_post(full_jobs, populated_full_queue, base_filesystem):
     file_name = "test_file.txt"
     content = "test content"
     job = full_jobs[0]
     job_dequeue = client.get(
         endpoint,
-        params={
-            "hostname": "i",
-            "cpu_cores": 999,
-            "memory": 999,
-            "environment": env_name,
-        },
+        params={"cpu_cores": 999, "memory": 999},
     ).json()
     job_id, job_dequeue = list(job_dequeue.items())[0]
     res = client.post(

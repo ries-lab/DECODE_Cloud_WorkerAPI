@@ -15,10 +15,9 @@ router = APIRouter()
 
 @router.get("/jobs", response_model=dict[int, JobSpecs], tags=["Jobs"])
 async def get_jobs(
-    hostname: str,
+    request: Request,
     cpu_cores: int,
     memory: int,
-    environment: str,
     gpu_model: str | None = None,
     gpu_archi: str | None = None,
     gpu_mem: int | None = None,
@@ -27,6 +26,11 @@ async def get_jobs(
     older_than: int | None = None,
     queue: JobQueue = Depends(get_queue),
 ):
+    hostname = request.state.current_user.username
+    environment = (
+        "cloud" if "cloud" in request.state.current_user.cognito_groups else "local"
+    )
+
     jobs = {}
     for _ in range(limit):
         job = queue.dequeue(
@@ -55,12 +59,14 @@ async def get_job_status(job_id: int, queue: JobQueue = Depends(get_queue)):
 
 @router.put("/jobs/{job_id}/status", tags=["Jobs"])
 async def put_job_status(
+    request: Request,
     job_id: int,
     status: JobStates,
     runtime_details: str | None = None,
     queue: JobQueue = Depends(get_queue),
 ):
-    return queue.update_job_status(job_id, status, runtime_details)
+    hostname = request.state.current_user.username
+    return queue.update_job_status(job_id, status, runtime_details, hostname=hostname)
 
 
 class UploadType(enum.Enum):
@@ -79,6 +85,7 @@ def _upload_path(job, type, path):
     "/jobs/{job_id}/files/upload", status_code=status.HTTP_201_CREATED, tags=["Files"]
 )
 async def upload_file(
+    request: Request,
     job_id: int,
     type: UploadType,
     path: str,
@@ -86,7 +93,7 @@ async def upload_file(
     filesystem=Depends(filesystem_dep),
     queue: JobQueue = Depends(get_queue),
 ):
-    job = queue.get_job(job_id)
+    job = queue.get_job(job_id, hostname=request.state.current_user.username)
     path = _upload_path(job, type, path)
     return filesystem.post_file(file, path)
 
@@ -98,13 +105,13 @@ async def upload_file(
     tags=["Files"],
 )
 async def get_upload_presigned_url(
+    request: Request,
     job_id: int,
     type: UploadType,
-    request: Request,
     base_path: str = "",
     filesystem=Depends(filesystem_dep),
     queue: JobQueue = Depends(get_queue),
 ):
-    job = queue.get_job(job_id)
+    job = queue.get_job(job_id, hostname=request.state.current_user.username)
     path = _upload_path(job, type, base_path)
     return filesystem.post_file_url(path, request, re.escape("/url") + "$", "/upload")

@@ -13,7 +13,7 @@ from workerfacing_api.crud import job_tracking
 from workerfacing_api.main import workerfacing_app
 from workerfacing_api.dependencies import (
     current_user_dep,
-    CognitoClaims,
+    GroupClaims,
     filesystem_dep,
     APIKeyDependency,
     authorizer,
@@ -32,6 +32,11 @@ example_paths_upload = {
     "log": f"{test_username}/log",
     "artifact": f"{test_username}/artifact",
 }
+
+
+@pytest.fixture(autouse=True)
+def env_name():
+    return "local"
 
 
 @pytest.fixture(scope="module")
@@ -135,8 +140,12 @@ def override_auth(monkeypatch_module):
     monkeypatch_module.setitem(
         workerfacing_app.dependency_overrides,
         current_user_dep,
-        lambda: CognitoClaims(
-            **{"cognito:username": test_username, "email": "test@example.com"}
+        lambda: GroupClaims(
+            **{
+                "cognito:username": test_username,
+                "cognito:email": "test@example.com",
+                "cognito:groups": ["workers"],
+            }
         ),
     )
 

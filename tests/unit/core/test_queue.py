@@ -1,11 +1,15 @@
 import datetime
 import pytest
-import psycopg2
 import random
 import threading
 import time
 from tests.conftest import example_app, example_paths_upload
-from workerfacing_api.core.queue import LocalJobQueue, SQSJobQueue, RDSJobQueue
+from workerfacing_api.core.queue import (
+    LocalJobQueue,
+    SQSJobQueue,
+    RDSJobQueue,
+    JobStates,
+)
 
 
 @pytest.fixture
@@ -325,6 +329,15 @@ class TestRDSLocalQueue(TestLocalQueue):
         # different worker can repull
         res = populated_full_queue.dequeue(hostname="second", environment=env_name)
         assert res["job_id"] == job_id
+        # first worker cannot update
+        with pytest.raises(Exception):
+            populated_full_queue.update_job_status(
+                job_id, status=JobStates.running, hostname="first"
+            )
+        # second worker can update
+        populated_full_queue.update_job_status(
+            job_id, status=JobStates.running, hostname="second"
+        )
         # fail
         time.sleep(6)
         populated_full_queue.handle_timeouts(max_retries=1, timeout_failure=5)

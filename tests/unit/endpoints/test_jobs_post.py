@@ -33,7 +33,7 @@ def queue_job():
             "hardware": {},
         },
         "environment": "cloud",
-        "paths_upload": {"output": "out", "log": "log"},
+        "paths_upload": {"output": "out", "log": "log", "artifact": "model"},
     }
 
 
