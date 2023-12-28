@@ -55,6 +55,7 @@ class JobSpecs(BaseModel):
 class PathsUploadSpecs(BaseModel):
     output: str
     log: str
+    artifact: str
 
 
 class QueueJob(BaseModel):
