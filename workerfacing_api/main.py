@@ -35,11 +35,15 @@ queue = dependencies.get_queue()
 @workerfacing_app.on_event("startup")
 @repeat_every(seconds=60, raise_exceptions=True)
 async def find_failed_jobs():
-    max_retries = settings.max_retries
-    timeout_failure = settings.timeout_failure
-    n_retry, n_fail = queue.handle_timeouts(max_retries, timeout_failure)
-    print(f"Silent fails check: {n_retry} re-queued, {n_fail} failed.")
-    return {"n_retry": n_retry, "n_fail": n_fail}
+    print("Silent fails check: starting...")
+    try:
+        max_retries = settings.max_retries
+        timeout_failure = settings.timeout_failure
+        n_retry, n_fail = queue.handle_timeouts(max_retries, timeout_failure)
+        print(f"Silent fails check: {n_retry} re-queued, {n_fail} failed.")
+        return {"n_retry": n_retry, "n_fail": n_fail}
+    except Exception as e:
+        print(f"Silent fails check: failed with {e}")
 
 
 @workerfacing_app.get("/")
