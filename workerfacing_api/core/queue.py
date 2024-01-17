@@ -9,7 +9,7 @@ import time
 from abc import ABC, abstractmethod
 from deprecated import deprecated
 from dict_hash import sha256
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status as httpstatus
 from typing import Tuple
 from sqlalchemy import create_engine, not_
 from sqlalchemy.orm import Session
@@ -210,7 +210,7 @@ class SQSJobQueue(JobQueue):
             except self.sqs_client.exceptions.QueueNameExists:
                 if err_on_exists:
                     raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
+                        status_code=httpstatus.HTTP_400_BAD_REQUEST,
                         detail=f"A queue with the name {queue_name} already exists.",
                     )
 
@@ -234,7 +234,7 @@ class SQSJobQueue(JobQueue):
             )
         except botocore.exceptions.ClientError as error:
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                status_code=httpstatus.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error sending message to SQS queue: {error}.",
             )
 
@@ -250,7 +250,7 @@ class SQSJobQueue(JobQueue):
             )
         except botocore.exceptions.ClientError as error:
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                status_code=httpstatus.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error receiving message from SQS queue: {error}.",
             )
         if len(response.get("Messages", [])):
@@ -308,7 +308,7 @@ class RDSJobQueue(JobQueue):
     def create(self, err_on_exists: bool = True):  # TODO
         if self.engine.has_table(self.table_name) and err_on_exists:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
+                status_code=httpstatus.HTTP_400_BAD_REQUEST,
                 detail=f"A table with the name {self.table_name} already exists.",
             )
         Base.metadata.create_all(self.engine)
@@ -353,7 +353,7 @@ class RDSJobQueue(JobQueue):
             groups = []
         if ";" in hostname:
             raise HTTPException(
-                status_code=status.HTTP_412_PRECONDITION_FAILED,
+                status_code=httpstatus.HTTP_412_PRECONDITION_FAILED,
                 detail="Hostname cannot contain ; for technical reasons.",
             )
         with Session(self.engine) as session:
@@ -420,7 +420,7 @@ class RDSJobQueue(JobQueue):
             res = res.with_for_update(of=QueuedJob, nowait=True)
         if not res:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=httpstatus.HTTP_404_NOT_FOUND,
                 detail=f"Job with id {job_id} not found (might have been pulled by another worker)",
             )
         job = res.first()
@@ -428,7 +428,7 @@ class RDSJobQueue(JobQueue):
             workers = job.workers.split(";")
             if not workers or hostname != workers[-1]:
                 raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
+                    status_code=httpstatus.HTTP_409_CONFLICT,
                     detail=f"Job with id {job_id} is not assigned to worker {hostname}",
                 )
         return res.first()
@@ -446,7 +446,7 @@ class RDSJobQueue(JobQueue):
             # job probably deleted by user
             session.delete(job)
             session.commit()
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=e)
+            raise HTTPException(status_code=httpstatus.HTTP_404_NOT_FOUND, detail=e)
 
     def update_job_status(
         self,
