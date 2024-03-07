@@ -1,6 +1,6 @@
 # DECODE_Cloud_WorkerAPI
 
-Code for the worker-facing API of DECODE OpenCloud.  
+Code for the worker-facing API of ![DECODE OpenCloud](https://github.com/ries-lab/DECODE_Cloud_Documentation).  
 
 The worker-facing API handles the communication with the workers.
 The authenticated workers can:
