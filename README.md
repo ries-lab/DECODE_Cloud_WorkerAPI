@@ -1,6 +1,6 @@
 # DECODE_Cloud_WorkerAPI
 
-Code for the worker-facing API of ![DECODE OpenCloud](https://github.com/ries-lab/DECODE_Cloud_Documentation).  
+Code for the worker-facing API of [DECODE OpenCloud](https://github.com/ries-lab/DECODE_Cloud_Documentation).  
 
 The worker-facing API handles the communication with the workers.
 The authenticated workers can:
@@ -10,8 +10,8 @@ The authenticated workers can:
    * upload job results (via pre-signed urls)
  * download files (via pre-signed urls)
 
-Behind the scenes, the API communicates with the ![user-facing API](https://github.com/ries-lab/DECODE_Cloud_UserAPI) of DECODE OpenCloud.
-It forwards the status updates to the ![user-facing API](https://github.com/ries-lab/DECODE_Cloud_UserAPI), and gets new jobs from it.
+Behind the scenes, the API communicates with the [user-facing API](https://github.com/ries-lab/DECODE_Cloud_UserAPI) of DECODE OpenCloud.
+It forwards the status updates to the [user-facing API](https://github.com/ries-lab/DECODE_Cloud_UserAPI), and gets new jobs from it.
 
 ## Run
 #### Define the environment variables
@@ -27,8 +27,8 @@ Copy the `.env.example` file to a `.env` file at the root of the directory and d
    - `TIMEOUT_FAILURE`: number of seconds after the last "keepalive" pinging signal from worker before the job is considered as having silently failed.
    - `RETRY_DIFFERENT`: whether to only retry a failed job with a different worker.
  - User-facing API:
-   - `USERFACING_API_URL`: url to use to connect to the ![user-facing API](https://github.com/ries-lab/DECODE_Cloud_UserAPI).
-   - `INTERNAL_API_KEY_SECRET`: secret to authenticate to the ![user-facing API](https://github.com/ries-lab/DECODE_Cloud_UserAPI), and for the ![user-facing API](https://github.com/ries-lab/DECODE_Cloud_UserAPI) to authenticate to this API, for internal endpoints. Can also be the ARN of an AWS SecretsManager secret.
+   - `USERFACING_API_URL`: url to use to connect to the [user-facing API](https://github.com/ries-lab/DECODE_Cloud_UserAPI).
+   - `INTERNAL_API_KEY_SECRET`: secret to authenticate to the [user-facing API](https://github.com/ries-lab/DECODE_Cloud_UserAPI), and for the [user-facing API](https://github.com/ries-lab/DECODE_Cloud_UserAPI) to authenticate to this API, for internal endpoints. Can also be the ARN of an AWS SecretsManager secret.
  - Authentication (nly AWS Cognito is supported):
    - `COGNITO_CLIENT_ID`: Cognito client ID.
    - `COGNITO_SECRET`: Secret for the client (if required). Can also be the ARN of an AWS SecretsManager secret.
