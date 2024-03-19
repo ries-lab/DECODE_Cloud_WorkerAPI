@@ -8,7 +8,6 @@ from workerfacing_api.schemas.files import FileHTTPRequest
 
 
 router = APIRouter()
-s3_client = boto3.client("s3")
 
 
 @router.get(

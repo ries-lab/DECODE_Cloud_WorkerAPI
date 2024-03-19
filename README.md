@@ -19,6 +19,7 @@ Copy the `.env.example` file to a `.env` file at the root of the directory and d
  - Data settings:
    - `FILESYSTEM`: one of `local` or `s3`, where the data is stored.
    - `S3_BUCKET`: if `FILESYSTEM==s3`, in what bucket the data is stored.
+   - `S3_REGION`: if `FILESYSTEM==s3`, in what region the bucket lies.
    - `USER_DATA_ROOT_PATH`: base path of the data storage (e.g. `../user_data` for a local filesystem, or `user_data` for S3 storage).
  - Job queue:
    - `QUEUE_DB_URL`: url of the queue database (e.g. `sqlite:///./sql_app.db` for a local database, or `postgresql://postgres:{}@<db_url>:5432/<db_name>` for a PostgreSQL database on AWS RDS).

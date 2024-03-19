@@ -1,5 +1,7 @@
 import boto3
 import typing
+from botocore.config import Config
+from botocore.utils import fix_s3_host
 from fastapi import Depends, Header, HTTPException, Request
 from fastapi_cloudauth.cognito import CognitoCurrentUser, CognitoClaims
 from pydantic import Field
@@ -67,7 +69,13 @@ async def current_user_global_dep(
 # Files
 async def filesystem_dep():
     if settings.filesystem == "s3":
-        s3_client = boto3.client("s3")
+        s3_client = boto3.client(
+            "s3",
+            region_name=settings.s3_region,
+            config=Config(signature_version="v4", s3={"addressing_style": "path"}),
+        )
+        # this and config=... required to avoid DNS problems with new buckets
+        s3_client.meta.events.unregister("before-sign.s3", fix_s3_host)
         s3_bucket = settings.s3_bucket
         return filesystem.S3Filesystem(s3_client, s3_bucket)
     elif settings.filesystem == "local":

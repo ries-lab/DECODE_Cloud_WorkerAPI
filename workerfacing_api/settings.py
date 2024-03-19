@@ -5,6 +5,7 @@ import os
 # Data
 filesystem = os.environ.get("FILESYSTEM")  # filesystem
 s3_bucket = os.environ.get("S3_BUCKET")
+s3_region = os.environ.get("S3_REGION")
 user_data_root_path = os.environ.get("USER_DATA_ROOT_PATH")
 
 
