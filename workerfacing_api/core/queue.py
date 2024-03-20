@@ -294,9 +294,11 @@ class RDSJobQueue(JobQueue):
             try:
                 engine = create_engine(
                     db_url,
-                    connect_args={"check_same_thread": False}
-                    if db_url.startswith("sqlite")
-                    else {},
+                    connect_args=(
+                        {"check_same_thread": False}
+                        if db_url.startswith("sqlite")
+                        else {}
+                    ),
                 )
                 # Attempt to create a connection or perform any necessary operations
                 engine.connect()
@@ -446,7 +448,9 @@ class RDSJobQueue(JobQueue):
             # job probably deleted by user
             session.delete(job)
             session.commit()
-            raise HTTPException(status_code=httpstatus.HTTP_404_NOT_FOUND, detail=e)
+            raise HTTPException(
+                status_code=httpstatus.HTTP_404_NOT_FOUND, detail=repr(e)
+            )
 
     def update_job_status(
         self,
