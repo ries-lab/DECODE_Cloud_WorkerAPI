@@ -426,7 +426,7 @@ class RDSJobQueue(JobQueue):
                 detail=f"Job with id {job_id} not found (might have been pulled by another worker)",
             )
         job = res.first()
-        if hostname:
+        if job and hostname:
             workers = job.workers.split(";")
             if not workers or hostname != workers[-1]:
                 raise HTTPException(
