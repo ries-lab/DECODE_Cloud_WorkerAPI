@@ -1,15 +1,9 @@
-from tests.conftest import (
-    base_filesystem,
-    data_file1_name,
-    data_file1_contents,
-    data_file1,
-    env,
-)
+from types import SimpleNamespace
+
 import pytest
 import requests
-from starlette.responses import FileResponse
 from fastapi import HTTPException
-from types import SimpleNamespace
+from starlette.responses import FileResponse
 
 
 def _mock_request(url):
@@ -30,7 +24,9 @@ def test_get_file_not_exists(env, base_filesystem, data_file1):
         base_filesystem.get_file("not_exists")
 
 
-def test_get_file_url(env, base_filesystem, data_file1, data_file1_name):
+def test_get_file_url(
+    env, base_filesystem, data_file1, data_file1_name, data_file1_contents
+):
     url = base_filesystem.get_file_url(
         data_file1_name,
         _mock_request(f"http://example.com/test_url/{data_file1_name}"),

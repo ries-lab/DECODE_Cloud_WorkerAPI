@@ -1,13 +1,11 @@
 import dotenv
+from fastapi import Depends, FastAPI
+from fastapi_utils.tasks import repeat_every
 
 dotenv.load_dotenv()
 
-from fastapi import FastAPI, Depends
-from fastapi_utils.tasks import repeat_every
-
-from workerfacing_api.endpoints import files, jobs, jobs_post, access
 from workerfacing_api import dependencies, settings, tags
-
+from workerfacing_api.endpoints import access, files, jobs, jobs_post
 
 workerfacing_app = FastAPI(openapi_tags=tags.tags_metadata)
 

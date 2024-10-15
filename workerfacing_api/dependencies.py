@@ -1,14 +1,14 @@
-import boto3
 import typing
+
+import boto3
 from botocore.config import Config
 from botocore.utils import fix_s3_host
 from fastapi import Depends, Header, HTTPException, Request
-from fastapi_cloudauth.cognito import CognitoCurrentUser, CognitoClaims
+from fastapi_cloudauth.cognito import CognitoClaims, CognitoCurrentUser  # type: ignore
 from pydantic import Field
 
 from workerfacing_api import settings
 from workerfacing_api.core import filesystem, queue
-
 
 # Queue
 queue_db_url = settings.queue_db_url
@@ -23,7 +23,7 @@ def get_queue() -> queue.RDSJobQueue:
 # App-internal authentication (i.e. user-facing API <-> worker-facing API)
 # https://github.com/iwpnd/fastapi-key-auth/blob/main/fastapi_key_auth/dependency/authorizer.py
 class APIKeyDependency:
-    def __init__(self, key: str):
+    def __init__(self, key: str | None):
         self.key = key
 
     def __call__(self, x_api_key: typing.Optional[str] = Header(...)):

@@ -1,26 +1,13 @@
-import pytest
 import time
-from fastapi import HTTPException
-from fastapi.testclient import TestClient
 from io import BytesIO
-from tests.conftest import (
-    monkeypatch_module,
-    base_filesystem,
-    patch_update_job,
-    base_dir,
-    test_username,
-)
-from tests.unit.core.test_queue import (
-    jobs,
-    full_jobs,
-    populated_queue,
-    populated_full_queue,
-)
+
+import pytest
+from fastapi.testclient import TestClient
+
 from workerfacing_api.core import queue as core_queue
 from workerfacing_api.dependencies import get_queue
 from workerfacing_api.main import workerfacing_app
 from workerfacing_api.schemas.rds_models import JobStates
-
 
 client = TestClient(workerfacing_app)
 endpoint = "/jobs"
@@ -38,7 +25,7 @@ def queue(monkeypatch_module, tmpdir):
 
 
 def test_get_jobs(populated_full_queue, patch_update_job):
-    res = client.get(
+    client.get(
         endpoint,
         params={"cpu_cores": 999, "memory": 999},
     )
@@ -53,7 +40,7 @@ def test_get_jobs_required_params(populated_full_queue):
         del query_params[param]
         res = client.get(endpoint, params=query_params)
         assert res.status_code == 422
-        assert res.json()["detail"][0]["type"] == "value_error.missing"
+        assert "missing" in res.json()["detail"][0]["type"]
 
 
 def test_get_jobs_filtering_cpu_cores(populated_full_queue):

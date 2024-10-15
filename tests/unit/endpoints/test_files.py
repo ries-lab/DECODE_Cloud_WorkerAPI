@@ -1,21 +1,16 @@
-from tests.conftest import (
-    base_filesystem,
-    data_file1_name,
-    data_file1_contents,
-    data_file1,
-    env,
-)
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
-from workerfacing_api.main import workerfacing_app
 
+from workerfacing_api.main import workerfacing_app
 
 client = TestClient(workerfacing_app)
 endpoint = "/files"
 
 
-def test_get_file(env, base_filesystem, data_file1, data_file1_name):
+def test_get_file(
+    env, base_filesystem, data_file1, data_file1_name, data_file1_contents
+):
     if env == "local":
         file_resp = client.get(f"{endpoint}/{data_file1_name}/download")
         assert file_resp.content.decode("utf-8") == data_file1_contents

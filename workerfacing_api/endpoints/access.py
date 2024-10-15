@@ -1,11 +1,12 @@
 import enum
-from fastapi import APIRouter, status
+
+from fastapi import APIRouter
+
 from workerfacing_api.settings import (
-    cognito_user_pool_id,
     cognito_client_id,
     cognito_region,
+    cognito_user_pool_id,
 )
-
 
 router = APIRouter()
 

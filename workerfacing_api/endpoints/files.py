@@ -1,11 +1,10 @@
-import boto3
 import re
+
 from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import FileResponse
 
 from workerfacing_api.dependencies import filesystem_dep
 from workerfacing_api.schemas.files import FileHTTPRequest
-
 
 router = APIRouter()
 

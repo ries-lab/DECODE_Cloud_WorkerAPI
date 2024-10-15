@@ -2,9 +2,10 @@ import abc
 import os
 import re
 import shutil
+from pathlib import Path
+
 from fastapi import HTTPException, status
 from fastapi.responses import FileResponse
-from pathlib import Path
 
 
 class FileSystem(abc.ABC):
@@ -32,7 +33,7 @@ class LocalFilesystem(FileSystem):
         self.base_post_path = base_post_path
 
     def get_file(self, path: str):
-        if not Path(self.base_get_path) in Path(path).parents:
+        if Path(self.base_get_path) not in Path(path).parents:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Path is not in base directory",
@@ -51,7 +52,7 @@ class LocalFilesystem(FileSystem):
         }
 
     def post_file(self, file, path: str):
-        if not Path(self.base_post_path) in Path(path).parents:
+        if Path(self.base_post_path) not in Path(path).parents:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Path is not in base directory",
@@ -64,7 +65,7 @@ class LocalFilesystem(FileSystem):
             file.file.close()
 
     def post_file_url(self, path: str, request, url_endpoint: str, files_endpoint: str):
-        if not Path(self.base_post_path) in Path(path).parents:
+        if Path(self.base_post_path) not in Path(path).parents:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Path is not in base directory",
@@ -99,7 +100,7 @@ class S3Filesystem(FileSystem):
         bucket, path = self._get_bucket_path(path)
 
         response = self.s3_client.list_objects_v2(Bucket=bucket, Prefix=path)
-        if not "Contents" in response:
+        if "Contents" not in response:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
         return {

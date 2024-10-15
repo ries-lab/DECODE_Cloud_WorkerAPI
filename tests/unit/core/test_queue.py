@@ -1,14 +1,15 @@
-import datetime
-import pytest
 import random
 import threading
 import time
-from tests.conftest import example_app, example_paths_upload
+
+import pytest
+from fastapi import HTTPException
+
 from workerfacing_api.core.queue import (
-    LocalJobQueue,
-    SQSJobQueue,
-    RDSJobQueue,
     JobStates,
+    LocalJobQueue,
+    RDSJobQueue,
+    SQSJobQueue,
 )
 
 
@@ -17,90 +18,6 @@ def skip_aws_mock(env):
     if env == "aws_mock":
         pytest.skip("Missing attribute 'some_attr'")
     yield env
-
-
-@pytest.fixture(scope="function")
-def jobs(env, base_filesystem):
-    time_now = datetime.datetime.utcnow().isoformat()
-
-    paths_upload = example_paths_upload.copy()
-    for k, v in paths_upload.items():
-        if env == "local":
-            paths_upload[k] = f"{base_filesystem.base_post_path}/{v}"
-        else:
-            paths_upload[k] = f"s3://{base_filesystem.bucket}/{v}"
-
-    common_base = {
-        "app": example_app,
-        "handler": {"image_url": "u", "files_up": {"output": "out"}},
-        "hardware": {},
-    }
-    job0 = {
-        "job": {**common_base, "meta": {"job_id": 0, "date_created": time_now}},
-        "paths_upload": paths_upload,
-    }
-    job1 = {
-        "job": {**common_base, "meta": {"job_id": 1, "date_created": time_now}},
-        "paths_upload": paths_upload,
-    }
-    job2 = {
-        "job": {**common_base, "meta": {"job_id": 2, "date_created": time_now}},
-        "paths_upload": paths_upload,
-    }
-    job3 = {
-        "job": {**common_base, "meta": {"job_id": 3, "date_created": time_now}},
-        "paths_upload": paths_upload,
-    }
-    return job0, job1, job2, job3
-
-
-@pytest.fixture(scope="function")
-def full_jobs(jobs):
-    job0, job1, job2, job3 = jobs
-
-    job0["job"]["hardware"] = {
-        "cpu_cores": 3,
-        "memory": 2,
-        "gpu_model": "gpu_model",
-        "gpu_archi": "gpu_archi",
-        "gpu_mem": 0,
-    }
-    job0.update({"group": None, "priority": 5})
-
-    job1["job"]["hardware"] = {
-        "cpu_cores": 1,
-        "memory": 0,
-        "gpu_model": None,
-        "gpu_archi": None,
-        "gpu_mem": None,
-    }
-    job1.update({"group": None, "priority": 10})
-
-    job2.update({"group": "group", "priority": 1})
-
-    job3.update({"priority": 1})
-
-    return job0, job1, job2, job3
-
-
-@pytest.fixture
-def populated_queue(queue, jobs, env_name):
-    job1, job2, job3, job4 = jobs
-    queue.enqueue(environment=env_name, item=job1)
-    queue.enqueue(environment=env_name, item=job2)
-    queue.enqueue(environment=None, item=job3)
-    queue.enqueue(environment=f"not-{env_name}", item=job4)
-    return queue
-
-
-@pytest.fixture
-def populated_full_queue(queue, full_jobs, env_name):
-    job1, job2, job3, job4 = full_jobs
-    queue.enqueue(environment=env_name, item=job1)
-    queue.enqueue(environment=env_name, item=job2)
-    queue.enqueue(environment=env_name, item=job3)
-    queue.enqueue(environment=env_name, item=job4)
-    return queue
 
 
 class TestLocalQueue:
@@ -208,7 +125,7 @@ class TestsSQSQueue(TestLocalQueue):
             try:
                 job_queue.create(err_on_exists=True)
                 break
-            except:
+            except HTTPException:
                 time.sleep(1)
         yield job_queue
         job_queue.delete()

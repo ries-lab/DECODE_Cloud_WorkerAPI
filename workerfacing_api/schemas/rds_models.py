@@ -1,10 +1,8 @@
 import datetime
 import enum
-from sqlalchemy import Column, Enum, Integer, String, DateTime, JSON
-from sqlalchemy.ext.declarative import declarative_base
 
-
-Base = declarative_base()
+from sqlalchemy import JSON, Column, DateTime, Enum, Integer, String
+from sqlalchemy.orm import DeclarativeBase as Base
 
 
 class JobStates(enum.Enum):

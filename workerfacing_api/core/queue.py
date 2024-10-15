@@ -1,5 +1,3 @@
-import boto3
-import botocore
 import datetime
 import json
 import os
@@ -7,16 +5,20 @@ import pickle
 import threading
 import time
 from abc import ABC, abstractmethod
-from deprecated import deprecated
-from dict_hash import sha256
-from fastapi import HTTPException, status as httpstatus
 from typing import Tuple
-from sqlalchemy import create_engine, not_
+
+import boto3
+import botocore
+from deprecated import deprecated
+from dict_hash import sha256  # type: ignore
+from fastapi import HTTPException
+from fastapi import status as httpstatus
+from sqlalchemy import create_engine, inspect, not_
 from sqlalchemy.orm import Session
 
 from workerfacing_api import settings
-from workerfacing_api.schemas.rds_models import QueuedJob, JobStates, Base
 from workerfacing_api.crud import job_tracking
+from workerfacing_api.schemas.rds_models import Base, JobStates, QueuedJob
 
 
 class UpdateLock:
@@ -56,13 +58,13 @@ class JobQueue(ABC):
     @abstractmethod
     def enqueue(self, environment: str | None, item: dict):
         """Push a new job to the queue."""
-        if not "job" in item:
+        if "job" not in item:
             raise ValueError("Item must contain a job.")
 
     @abstractmethod
     def peek(
         self, hostname: str, environment: str | None, older_than: int = 0
-    ) -> Tuple[dict, str | None] | None:
+    ) -> Tuple[dict | None, str | None]:
         """Look at first element in the queue.
 
         Returns:
@@ -87,7 +89,7 @@ class JobQueue(ABC):
         # if element found
         if item:
             successful = self.pop(
-                environment=environment, receipt_handle=receipt_handle
+                environment=environment, receipt_handle=receipt_handle or ""
             )
             if successful:
                 return item
@@ -97,12 +99,17 @@ class JobQueue(ABC):
                 )
         return None
 
-    def get_job(self, job_id: str):
+    def get_job(self, job_id: int, *args, **kwargs):
         """Get job information, not necessarily in queue."""
         raise NotImplementedError
 
     def update_job_status(
-        self, job_id: int, status: JobStates, runtime_details: str | None = None
+        self,
+        job_id: int,
+        status: JobStates,
+        runtime_details: str | None = None,
+        *args,
+        **kwargs,
     ):
         """Update the job status."""
         raise NotImplementedError
@@ -130,7 +137,7 @@ class LocalJobQueue(JobQueue):
     def delete(self):
         try:
             os.remove(self.queue_path)
-        except:
+        except FileNotFoundError:
             pass
 
     def enqueue(self, environment: str | None, item: dict):
@@ -266,11 +273,11 @@ class SQSJobQueue(JobQueue):
 
     def pop(self, environment: str, receipt_handle: str) -> bool:
         try:
-            response = self.sqs_client.delete_message(
+            self.sqs_client.delete_message(
                 QueueUrl=self.queue_urls[environment],
                 ReceiptHandle=receipt_handle,
             )
-        except botocore.exceptions.ClientError as error:
+        except botocore.exceptions.ClientError:
             return False
         return True
 
@@ -303,12 +310,13 @@ class RDSJobQueue(JobQueue):
                 # Attempt to create a connection or perform any necessary operations
                 engine.connect()
                 return engine  # Connection successful
-            except Exception as e:
+            except Exception:
                 retries += 1
                 time.sleep(retry_wait)
 
     def create(self, err_on_exists: bool = True):  # TODO
-        if self.engine.has_table(self.table_name) and err_on_exists:
+        inspector = inspect(self.engine)
+        if inspector.has_table(self.table_name) and err_on_exists:
             raise HTTPException(
                 status_code=httpstatus.HTTP_400_BAD_REQUEST,
                 detail=f"A table with the name {self.table_name} already exists.",
@@ -371,15 +379,18 @@ class RDSJobQueue(JobQueue):
                                 < datetime.datetime.utcnow()
                                 - datetime.timedelta(seconds=older_than)
                             )
-                            & (QueuedJob.environment == None)
+                            & (QueuedJob.environment.is_(None))
                         )
                         | (QueuedJob.environment == environment)
                     ),  # right environment pulls its jobs immediately
-                    (QueuedJob.cpu_cores <= cpu_cores) | (QueuedJob.cpu_cores == None),
-                    (QueuedJob.memory <= memory) | (QueuedJob.memory == None),
-                    (QueuedJob.gpu_model == gpu_model) | (QueuedJob.gpu_model == None),
-                    (QueuedJob.gpu_archi == gpu_archi) | (QueuedJob.gpu_archi == None),
-                    (QueuedJob.gpu_mem <= gpu_mem) | (QueuedJob.gpu_mem == None),
+                    (QueuedJob.cpu_cores <= cpu_cores)
+                    | (QueuedJob.cpu_cores.is_(None)),
+                    (QueuedJob.memory <= memory) | (QueuedJob.memory.is_(None)),
+                    (QueuedJob.gpu_model == gpu_model)
+                    | (QueuedJob.gpu_model.is_(None)),
+                    (QueuedJob.gpu_archi == gpu_archi)
+                    | (QueuedJob.gpu_archi.is_(None)),
+                    (QueuedJob.gpu_mem <= gpu_mem) | (QueuedJob.gpu_mem.is_(None)),
                 )
                 if settings.retry_different:
                     # only if worker did not already try running this job

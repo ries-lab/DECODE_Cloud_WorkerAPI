@@ -5,7 +5,6 @@ from workerfacing_api.core.queue import JobQueue
 from workerfacing_api.dependencies import get_queue
 from workerfacing_api.schemas.queue_jobs import EnvironmentTypes, QueueJob
 
-
 router = APIRouter()
 
 
