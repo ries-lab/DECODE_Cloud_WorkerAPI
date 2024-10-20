@@ -21,6 +21,9 @@ See online guides on how to use it, but the two basic commands that you will nee
  - `poetry install` to create the virtual environment in this directory (you need python 3.11.10, so for example, run `mamba create -n "3-11-10" python=3.11.10` and `poetry env use /path/to/mamba/env/bin/python` beforehand);
  - `poetry add <package>` to add new dependencies.
 
+Install the pre-commit hooks: `pre-commit install`.
+These currently include ruff and mypy.
+
 ### Run locally
 
 #### Define the environment variables
