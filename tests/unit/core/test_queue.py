@@ -1,3 +1,5 @@
+import abc
+import os
 import random
 import threading
 import time
@@ -14,18 +16,26 @@ from workerfacing_api.core.queue import (
 
 
 @pytest.fixture
-def skip_aws_mock(env):
-    if env == "aws_mock":
-        pytest.skip("Missing attribute 'some_attr'")
+def skip_aws(env):
+    if env != "local":
+        pytest.skip("Only tested on local DB")
     yield env
 
 
-class TestLocalQueue:
+@pytest.fixture
+def skip_local(env):
+    if env == "local":
+        pytest.skip("Only tested on AWS")
+    yield env
+
+
+class _TestJobQueue(abc.ABC):
     @pytest.fixture(scope="function")
-    def queue(self, tmpdir):
-        queue_path = str(tmpdir / "queue.pkl")
-        job_queue = LocalJobQueue(queue_path)
-        job_queue.create()
+    def job_queue(self):
+        raise NotImplementedError
+
+    @pytest.fixture
+    def queue(self, job_queue):
         yield job_queue
         job_queue.delete()
 
@@ -114,10 +124,20 @@ class TestLocalQueue:
         )
 
 
-@pytest.mark.skip("too slow in development")
-class TestsSQSQueue(TestLocalQueue):
+class TestLocalQueue(_TestJobQueue):
+    @pytest.fixture(scope="function")
+    def job_queue(self, skip_aws, tmpdir):
+        queue_path = str(tmpdir / "queue.pkl")
+        if os.path.exists(queue_path):
+            os.remove(queue_path)
+        job_queue = LocalJobQueue(queue_path)
+        job_queue.create()
+        return job_queue
+
+
+class TestSQSQueue(_TestJobQueue):
     @pytest.fixture
-    def queue(self, env_name, skip_aws_mock):
+    def job_queue(self, skip_local, env_name):
         # need new env name for each test (SQS queues can't be recreated after less than 60 seconds)
         job_queue = SQSJobQueue([env_name, f"not-{env_name}"])
         # wait for queue to be deleted before recreating
@@ -127,8 +147,7 @@ class TestsSQSQueue(TestLocalQueue):
                 break
             except HTTPException:
                 time.sleep(1)
-        yield job_queue
-        job_queue.delete()
+        return job_queue
 
 
 def _patched_func(queue, func_name):
@@ -151,13 +170,12 @@ def patch_queue_funcs(monkeypatch_module):
     )
 
 
-class TestRDSLocalQueue(TestLocalQueue):
+class TestRDSLocalQueue(_TestJobQueue):
     @pytest.fixture(scope="function")
-    def queue(self, tmpdir, env_name):
+    def job_queue(self, skip_aws, tmpdir, env_name):
         job_queue = RDSJobQueue(f"sqlite:///{tmpdir}/{env_name}.db")
         job_queue.create()
-        yield job_queue
-        job_queue.delete()
+        return job_queue
 
     # additional tests for additional functionality
     def test_filtering(self, populated_full_queue, env_name):

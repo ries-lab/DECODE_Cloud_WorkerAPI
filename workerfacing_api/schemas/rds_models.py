@@ -2,7 +2,7 @@ import datetime
 import enum
 
 from sqlalchemy import JSON, Column, DateTime, Enum, Integer, String
-from sqlalchemy.orm import DeclarativeBase as Base
+from sqlalchemy.orm import DeclarativeBase
 
 
 class JobStates(enum.Enum):
@@ -13,6 +13,10 @@ class JobStates(enum.Enum):
     postprocessing = "postprocessing"
     finished = "finished"
     error = "error"
+
+
+class Base(DeclarativeBase):
+    pass
 
 
 class QueuedJob(Base):

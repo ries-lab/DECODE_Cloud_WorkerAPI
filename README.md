@@ -13,7 +13,16 @@ The authenticated workers can:
 Behind the scenes, the API communicates with the [user-facing API](https://github.com/ries-lab/DECODE_Cloud_UserAPI) of DECODE OpenCloud.
 It forwards the status updates to the [user-facing API](https://github.com/ries-lab/DECODE_Cloud_UserAPI), and gets new jobs from it.
 
-## Run
+## Development guide
+
+### Prepare the development environment
+We use [poetry](https://python-poetry.org/) for dependency tracking.
+See online guides on how to use it, but the two basic commands that you will need for this project are:
+ - `poetry install` to create the virtual environment in this directory (you need python 3.11.10, so for example, run `mamba create -n "3-11-10" python=3.11.10` and `poetry env use /path/to/mamba/env/bin/python` beforehand);
+ - `poetry add <package>` to add new dependencies.
+
+### Run locally
+
 #### Define the environment variables
 Copy the `.env.example` file to a `.env` file at the root of the directory and define its fields appropriately:
  - Data settings:
@@ -41,3 +50,7 @@ Copy the `.env.example` file to a `.env` file at the root of the directory and d
 
 #### View the API documentation
 You can find it at `<API_URL>/docs` (if running locally, `<API_URL>=localhost:8001`).
+
+### Tests
+Run them with `poetry run pytest`.
+Note that tests marked with `aws` are skipped by default, to avoid the need for an AWS setup.
