@@ -49,10 +49,16 @@ Copy the `.env.example` file to a `.env` file at the root of the directory and d
    - `COGNITO_REGION`: Region for the user pool.
 
 #### Start the user-facing API
-`uvicorn workerfacing_api.main:workerfacing_app --reload --port 8001`
+`poetry run serve`
 
 #### View the API documentation
-You can find it at `<API_URL>/docs` (if running locally, `<API_URL>=localhost:8001`).
+You can find it at `<API_URL>/docs` (if running locally, `<API_URL>=localhost:81`).
+
+#### Docker
+Alternatively, you can build a Docker image.
+For this, run `poetry run build`:
+This will create a Docker image named `workerfacing-api:<branch_name>`.  
+If you want to remove all images built this way and prune dangling images, run `poetry run cleanup`.
 
 ### Tests
 Run them with `poetry run pytest`.

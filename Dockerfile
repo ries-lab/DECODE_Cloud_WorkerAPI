@@ -1,9 +1,14 @@
-FROM python:3.10-alpine
+# Limitation:
+#   - Big image size: uses poetry, gets the whole repo, ...
+#   - No caching/multi-stage build: the whole image is rebuilt every time
+# Done this way for easier mapping AWS AppRunner from GitHub source <-> Dockerfile
 
-COPY requirements.txt requirements.txt
+ARG PYTHON_VERSION
 
-RUN pip install -r requirements.txt
+FROM python:${PYTHON_VERSION}-slim as builder
 
-COPY ./workerfacing_api ./workerfacing_api
+WORKDIR /app
 
-CMD ["uvicorn", "workerfacing_api.main:workerfacing_app", "--host", "0.0.0.0", "--port", "81"]
+COPY . /app/
+RUN chmod +x /app/scripts/setup.sh && /app/scripts/setup.sh
+CMD ["poetry", "run", "serve"]
