@@ -1,6 +1,8 @@
 import os
+from pathlib import Path
 
 import docker
+import dotenv
 import toml
 
 
@@ -20,15 +22,18 @@ def _get_python_version() -> str:
     return pyproject_data["tool"]["poetry"]["dependencies"]["python"]
 
 
+def _get_git_branch() -> str:
+    return os.popen("git branch --show-current").read().strip()
+
+
 def build() -> None:
     """
     Builds a Docker image for the current branch.
     """
-    git_branch = os.popen("git branch --show-current").read().strip()
     client = _get_client()
     client.images.build(
         path=os.path.join(os.path.dirname(__file__), ".."),
-        tag=f"{_get_package_name()}:{git_branch}",
+        tag=f"{_get_package_name()}:{_get_git_branch()}",
         nocache=True,
         rm=True,
         pull=True,
@@ -36,10 +41,43 @@ def build() -> None:
     )
 
 
+def serve() -> None:
+    """
+    Runs a Docker container for the current branch.
+    """
+    client = _get_client()
+    port = dotenv.dotenv_values().get("PORT", 8001)
+    client.containers.run(
+        f"{_get_package_name()}:{_get_git_branch()}",
+        detach=True,
+        ports={str(port): int(port)},
+        environment=dotenv.dotenv_values(),
+        volumes={
+            str(Path.home() / ".aws" / "credentials"): {
+                "bind": "/home/app/.aws/credentials",
+                "mode": "ro",
+            }
+        },
+        auto_remove=True,
+    )
+
+
+def stop() -> None:
+    """
+    Stops and deletes all Docker containers for this package.
+    """
+    client = _get_client()
+    for container in client.containers.list(ignore_removed=True):
+        if container.attrs["image"].startswith(_get_package_name() + ":"):
+            container.remove(force=True)
+
+
 def cleanup() -> None:
     """
-    Removes all Docker images for this package.
+    Removes all Docker images for this package, prune dangling images.
+    Deletes all containers for this package.
     """
+    stop()
     client = _get_client()
     for image in client.images.list(name=_get_package_name()):
         client.images.remove(image.id, force=True)

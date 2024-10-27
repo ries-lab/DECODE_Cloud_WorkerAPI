@@ -56,9 +56,11 @@ You can find it at `<API_URL>/docs` (if running locally, `<API_URL>=localhost:81
 
 #### Docker
 Alternatively, you can build a Docker image.
-For this, run `poetry run build`:
+For this, run `poetry run docker-build`:
 This will create a Docker image named `workerfacing-api:<branch_name>`.  
-If you want to remove all images built this way and prune dangling images, run `poetry run cleanup`.
+To run the Docker container, use `poetry run docker-serve`.  
+To stop and delete all containers for this package, use `poetry run docker-stop`.
+If you want to additionally remove all images for this package and prune dangling images, run `poetry run docker-cleanup`.
 
 ### Tests
 Run them with `poetry run pytest`.
