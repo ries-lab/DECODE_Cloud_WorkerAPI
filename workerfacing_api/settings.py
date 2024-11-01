@@ -36,7 +36,8 @@ internal_api_key_secret = os.environ.get("INTERNAL_API_KEY_SECRET")
 
 # Authentication
 cognito_user_pool_id = os.environ.get("COGNITO_USER_POOL_ID")
-cognito_region = os.environ.get("COGNITO_REGION")
+# default to avoid ConnectionError in tests when initializing `current_user_dep`
+cognito_region = os.environ.get("COGNITO_REGION", "eu-central-1")
 cognito_client_id = os.environ.get("COGNITO_CLIENT_ID")
 cognito_secret = os.environ.get("COGNITO_SECRET")
 if cognito_secret:  # exists and not None
