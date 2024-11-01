@@ -3,36 +3,40 @@ import os
 import re
 import shutil
 from pathlib import Path
+from typing import Any
 
-from fastapi import HTTPException, status
+from fastapi import HTTPException, Request, UploadFile, status
 from fastapi.responses import FileResponse
 
 
 class FileSystem(abc.ABC):
-    def __init__(self):
-        pass
-
-    def get_file(self, path: str):
+    def get_file(self, path: str) -> FileResponse:
+        """Donwload a file from the filesystem."""
         raise NotImplementedError()
 
     def get_file_url(
-        self, path: str, request_url: str, url_endpoint: str, files_endpoint: str
-    ):
+        self, path: str, request: Request, url_endpoint: str, files_endpoint: str
+    ) -> dict[str, Any]:
+        """Get a url + parameters to request a file from the filesystem."""
         raise NotImplementedError()
 
-    def post_file(self, file, path: str):
+    def post_file(self, file: UploadFile, path: str) -> None:
+        """Upload a file to the filesystem."""
         raise NotImplementedError
 
-    def post_file_url(self, path: str, request, url_endpoint: str, files_endpoint: str):
+    def post_file_url(
+        self, path: str, request: Request, url_endpoint: str, files_endpoint: str
+    ) -> dict[str, Any]:
+        """Get a url + parameters to upload a file to the filesystem."""
         raise NotImplementedError()
 
 
 class LocalFilesystem(FileSystem):
-    def __init__(self, base_get_path, base_post_path):
+    def __init__(self, base_get_path: str, base_post_path: str):
         self.base_get_path = base_get_path
         self.base_post_path = base_post_path
 
-    def get_file(self, path: str):
+    def get_file(self, path: str) -> FileResponse:
         if Path(self.base_get_path) not in Path(path).parents:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -42,7 +46,9 @@ class LocalFilesystem(FileSystem):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
         return FileResponse(path)
 
-    def get_file_url(self, path: str, request, url_endpoint: str, files_endpoint: str):
+    def get_file_url(
+        self, path: str, request: Request, url_endpoint: str, files_endpoint: str
+    ) -> dict[str, Any]:
         if not os.path.exists(path):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
         return {
@@ -51,7 +57,7 @@ class LocalFilesystem(FileSystem):
             "method": "get",
         }
 
-    def post_file(self, file, path: str):
+    def post_file(self, file: UploadFile, path: str) -> None:
         if Path(self.base_post_path) not in Path(path).parents:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -64,7 +70,9 @@ class LocalFilesystem(FileSystem):
         finally:
             file.file.close()
 
-    def post_file_url(self, path: str, request, url_endpoint: str, files_endpoint: str):
+    def post_file_url(
+        self, path: str, request: Request, url_endpoint: str, files_endpoint: str
+    ) -> dict[str, Any]:
         if Path(self.base_post_path) not in Path(path).parents:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -78,17 +86,17 @@ class LocalFilesystem(FileSystem):
 
 
 class S3Filesystem(FileSystem):
-    def __init__(self, s3_client, bucket):
+    def __init__(self, s3_client: Any, bucket: str):
         self.s3_client = s3_client
         self.bucket = bucket
 
-    def get_file(self, path: str):
+    def get_file(self, path: str) -> FileResponse:
         raise HTTPException(
             status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
             detail="Please get a pre-signed url instead.",
         )
 
-    def _get_bucket_path(self, path):
+    def _get_bucket_path(self, path: str) -> tuple[str, str]:
         if not path.startswith("s3://"):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
         bucket, _, path = path[5:].partition("/")
@@ -96,7 +104,9 @@ class S3Filesystem(FileSystem):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
         return bucket, path
 
-    def get_file_url(self, path: str, request, url_endpoint: str, files_endpoint: str):
+    def get_file_url(
+        self, path: str, request: Request, url_endpoint: str, files_endpoint: str
+    ) -> dict[str, Any]:
         bucket, path = self._get_bucket_path(path)
 
         response = self.s3_client.list_objects_v2(Bucket=bucket, Prefix=path)
@@ -112,11 +122,13 @@ class S3Filesystem(FileSystem):
             "method": "get",
         }
 
-    def post_file(self, file, path: str):
+    def post_file(self, file: UploadFile, path: str) -> None:
         bucket, path = self._get_bucket_path(path)
         self.s3_client.upload_fileobj(file.file, bucket, path)
 
-    def post_file_url(self, path: str, request, url_endpoint: str, files_endpoint: str):
+    def post_file_url(
+        self, path: str, request: Request, url_endpoint: str, files_endpoint: str
+    ) -> dict[str, Any]:
         bucket, path = self._get_bucket_path(path)
         if path[-1] != "/":
             path = path + "/"
