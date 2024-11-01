@@ -4,6 +4,7 @@ import random
 import threading
 import time
 
+import boto3
 import pytest
 from fastapi import HTTPException
 
@@ -139,7 +140,9 @@ class TestSQSQueue(_TestJobQueue):
     @pytest.fixture
     def job_queue(self, skip_local, env_name):
         # need new env name for each test (SQS queues can't be recreated after less than 60 seconds)
-        job_queue = SQSJobQueue([env_name, f"not-{env_name}"])
+        job_queue = SQSJobQueue(
+            [env_name, f"not-{env_name}"], boto3.client("sqs", "eu-central-1")
+        )
         # wait for queue to be deleted before recreating
         while True:
             try:

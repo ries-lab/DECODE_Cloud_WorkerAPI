@@ -7,7 +7,6 @@ import time
 from abc import ABC, abstractmethod
 from typing import Tuple
 
-import boto3
 import botocore
 from deprecated import deprecated
 from dict_hash import sha256  # type: ignore
@@ -186,10 +185,8 @@ class LocalJobQueue(JobQueue):
 class SQSJobQueue(JobQueue):
     """SQS job queue."""
 
-    def __init__(self, environments: list[str | None], sqs_client=None):
-        self.sqs_client = sqs_client or boto3.client(
-            "sqs", region_name=settings.s3_region
-        )
+    def __init__(self, environments: list[str | None], sqs_client):
+        self.sqs_client = sqs_client
         self.queue_names = {}
         if None not in environments:
             environments = [None] + environments
