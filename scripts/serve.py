@@ -1,12 +1,12 @@
 import multiprocessing
 import os
 
-import gunicorn.app.base
+import gunicorn.app.base  # type: ignore
 import uvicorn
 
 
-class StandaloneApplication(gunicorn.app.base.BaseApplication):
-    def __init__(self, app, options=None):
+class StandaloneApplication(gunicorn.app.base.BaseApplication):  # type: ignore
+    def __init__(self, app: str, options: dict[str, str | int] | None = None):
         self.options = options or {}
         self.application = app
         super().__init__()
@@ -20,7 +20,7 @@ class StandaloneApplication(gunicorn.app.base.BaseApplication):
         for key, value in config.items():
             self.cfg.set(key.lower(), value)
 
-    def load(self):
+    def load(self) -> str:
         return self.application
 
 

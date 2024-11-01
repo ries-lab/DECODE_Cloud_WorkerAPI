@@ -2182,6 +2182,21 @@ files = [
 ]
 
 [[package]]
+name = "types-docker"
+version = "7.1.0.20240827"
+description = "Typing stubs for docker"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "types-docker-7.1.0.20240827.tar.gz", hash = "sha256:3b0a02da44cffef176dfc4f8b2c4a502ee66e83d79c8527c0cf5806eb599cfac"},
+    {file = "types_docker-7.1.0.20240827-py3-none-any.whl", hash = "sha256:e71067745f0100bcc2c1a2fc794ea15204c916430b09e61bd6bddf1bf56e4343"},
+]
+
+[package.dependencies]
+types-requests = "*"
+urllib3 = ">=2"
+
+[[package]]
 name = "types-requests"
 version = "2.32.0.20240914"
 description = "Typing stubs for requests"
@@ -2204,6 +2219,17 @@ python-versions = ">=3.8"
 files = [
     {file = "types_s3transfer-0.10.3-py3-none-any.whl", hash = "sha256:d34c5a82f531af95bb550927136ff5b737a1ed3087f90a59d545591dfde5b4cc"},
     {file = "types_s3transfer-0.10.3.tar.gz", hash = "sha256:f761b2876ac4c208e6c6b75cdf5f6939009768be9950c545b11b0225e7703ee7"},
+]
+
+[[package]]
+name = "types-toml"
+version = "0.10.8.20240310"
+description = "Typing stubs for toml"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "types-toml-0.10.8.20240310.tar.gz", hash = "sha256:3d41501302972436a6b8b239c850b26689657e25281b48ff0ec06345b8830331"},
+    {file = "types_toml-0.10.8.20240310-py3-none-any.whl", hash = "sha256:627b47775d25fa29977d9c70dc0cbab3f314f32c8d8d0c012f2ef5de7aaec05d"},
 ]
 
 [[package]]
@@ -2397,4 +2423,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = "3.11.10"
-content-hash = "a13178863d6b7b062f79e066698c0173ac56af9cb97f7210046cd9f72acdff10"
+content-hash = "b11c6dab77e4e2b21018b20de8b860f61ee91d74f3f175d6096752cc89d286f7"

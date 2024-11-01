@@ -13,13 +13,17 @@ def _get_client() -> docker.DockerClient:
 def _get_package_name() -> str:
     with open("pyproject.toml", "r") as file:
         pyproject_data = toml.load(file)
-    return pyproject_data["tool"]["poetry"]["name"]
+    pkg_name = pyproject_data["tool"]["poetry"]["name"]
+    assert isinstance(pkg_name, str)
+    return pkg_name
 
 
 def _get_python_version() -> str:
     with open("pyproject.toml", "r") as file:
         pyproject_data = toml.load(file)
-    return pyproject_data["tool"]["poetry"]["dependencies"]["python"]
+    python_version = pyproject_data["tool"]["poetry"]["dependencies"]["python"]
+    assert isinstance(python_version, str)
+    return python_version
 
 
 def _get_git_branch() -> str:
@@ -46,12 +50,15 @@ def serve() -> None:
     Runs a Docker container for the current branch.
     """
     client = _get_client()
-    port = dotenv.dotenv_values().get("PORT", 8001)
+    port = dotenv.dotenv_values().get("PORT")
+    if isinstance(port, str):
+        port_int = int(port)
+    elif port is None:
+        port_int = 8001
     client.containers.run(
-        f"{_get_package_name()}:{_get_git_branch()}",
-        detach=True,
-        ports={str(port): int(port)},
-        environment=dotenv.dotenv_values(),
+        image=f"{_get_package_name()}:{_get_git_branch()}",
+        ports={str(port): port_int},
+        environment={k: v for k, v in dotenv.dotenv_values().items() if v is not None},
         volumes={
             str(Path.home() / ".aws" / "credentials"): {
                 "bind": "/home/app/.aws/credentials",
