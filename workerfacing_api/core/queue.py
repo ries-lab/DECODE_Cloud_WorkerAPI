@@ -187,7 +187,9 @@ class SQSJobQueue(JobQueue):
     """SQS job queue."""
 
     def __init__(self, environments: list[str | None], sqs_client=None):
-        self.sqs_client = sqs_client or boto3.client("sqs")
+        self.sqs_client = sqs_client or boto3.client(
+            "sqs", region_name=settings.s3_region
+        )
         self.queue_names = {}
         if None not in environments:
             environments = [None] + environments
