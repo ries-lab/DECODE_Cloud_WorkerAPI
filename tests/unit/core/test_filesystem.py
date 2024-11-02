@@ -32,7 +32,7 @@ def test_get_file_url(
         _mock_request(f"http://example.com/test_url/{data_file1_name}"),
         "test_url",
         "files",
-    )["url"]
+    ).url
     if env == "local":
         assert url == f"http://example.com/files/{data_file1_name}"
     elif env == "s3":
