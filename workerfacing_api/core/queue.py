@@ -28,7 +28,10 @@ from workerfacing_api.schemas.rds_models import Base, JobStates, QueuedJob
 
 
 class UpdateLock:
-    """Context manager to lock a queue for update."""
+    """
+    Context manager to lock a queue for update.
+    Required for RDSQueue on SQLite since `with_for_update` does not lock there.
+    """
 
     def __init__(self) -> None:
         self.lock = threading.Lock()
@@ -46,6 +49,12 @@ class UpdateLock:
 
 
 class MockUpdateLock:
+    """
+    Mock context manager.
+    Used for RDSQueue on databases that are not SQLite,
+    since locking is already achieved via `with_for_update`.
+    """
+
     def __enter__(self) -> None:
         pass
 
@@ -118,7 +127,7 @@ class JobQueue(ABC):
         return None
 
 
-@deprecated(reason="Using a database as queue")
+@deprecated(reason="Using a database as queue for enhanced job tracking and filtering")
 class LocalJobQueue(JobQueue):
     """Local job queue, for testing purposes only."""
 
@@ -203,9 +212,9 @@ class LocalJobQueue(JobQueue):
             return True
 
 
-@deprecated(reason="Using a database as queue")
+@deprecated(reason="Using a database as queue for enhanced job tracking and filtering")
 class SQSJobQueue(JobQueue):
-    """SQS job queue."""
+    """SQS job queue. Not used anymore since it lacks filtering and prioritization."""
 
     def __init__(self, sqs_client: SQSClient):
         self.sqs_client = sqs_client
@@ -315,7 +324,8 @@ class SQSJobQueue(JobQueue):
 
 class RDSJobQueue(JobQueue):
     """Relational Database System job queue.
-    Allows other filter conditions and prioritization by not being a pure queue.
+    Allows enhanced filtering and prioritization by not being a pure queue.
+    Allows job tracking.
     """
 
     def __init__(self, db_url: str, max_retries: int = 10, retry_wait: int = 60):
@@ -478,6 +488,7 @@ class RDSJobQueue(JobQueue):
         status: JobStates,
         runtime_details: str | None = None,
     ) -> None:
+        """Internal job status update handler."""
         job.status = status.value  # type: ignore
         job.last_updated = datetime.datetime.now(datetime.timezone.utc)  # type: ignore
         session.add(job)
@@ -499,7 +510,7 @@ class RDSJobQueue(JobQueue):
         runtime_details: str | None = None,
         hostname: str | None = None,
     ) -> None:
-        """Update job status."""
+        """External entrypoint for job status updates by workers."""
         with Session(self.engine) as session:
             job = self.get_job(job_id, session, lock=True, hostname=hostname)
             self._update_job_status(session, job, status, runtime_details)
@@ -507,7 +518,7 @@ class RDSJobQueue(JobQueue):
     def handle_timeouts(
         self, max_retries: int, timeout_failure: int
     ) -> tuple[int, int]:
-        """Handle a timeout (keepalive signal not received)."""
+        """Handle a timeout (keepalive signal not received for a long time)."""
         n_retry, n_failed = 0, 0
         time_now = datetime.datetime.now(datetime.timezone.utc)
         with Session(self.engine) as session:

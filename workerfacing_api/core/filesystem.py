@@ -34,6 +34,8 @@ class FileSystem(abc.ABC):
 
 
 class LocalFilesystem(FileSystem):
+    """Filesystem on local disk."""
+
     def __init__(self, base_get_path: str, base_post_path: str):
         self.base_get_path = base_get_path
         self.base_post_path = base_post_path
@@ -88,6 +90,8 @@ class LocalFilesystem(FileSystem):
 
 
 class S3Filesystem(FileSystem):
+    """Filesystem on S3."""
+
     def __init__(self, s3_client: S3Client, bucket: str):
         self.s3_client = s3_client
         self.bucket = bucket
