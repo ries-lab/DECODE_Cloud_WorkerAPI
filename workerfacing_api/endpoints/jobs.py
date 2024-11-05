@@ -2,12 +2,23 @@ import enum
 import os
 import re
 
-from fastapi import APIRouter, Depends, File, Query, Request, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+)
+from fastapi import (
+    status as httpstatus,
+)
 
 from workerfacing_api.core.queue import JobQueue
 from workerfacing_api.dependencies import filesystem_dep, get_queue
 from workerfacing_api.schemas.files import FileHTTPRequest
-from workerfacing_api.schemas.queue_jobs import JobSpecs
+from workerfacing_api.schemas.queue_jobs import JobFilter, JobSpecs
 from workerfacing_api.schemas.rds_models import JobStates
 
 router = APIRouter()
@@ -16,14 +27,14 @@ router = APIRouter()
 @router.get("/jobs", response_model=dict[int, JobSpecs], tags=["Jobs"])
 async def get_jobs(
     request: Request,
-    cpu_cores: int,
     memory: int,
+    cpu_cores: int = 1,
+    gpu_mem: int = 0,
     gpu_model: str | None = None,
     gpu_archi: str | None = None,
-    gpu_mem: int | None = None,
     groups: list[str] | None = Query(None),
     limit: int = 1,
-    older_than: int | None = None,
+    older_than: int = 0,
     queue: JobQueue = Depends(get_queue),
 ):
     hostname = request.state.current_user.username
@@ -33,20 +44,22 @@ async def get_jobs(
 
     jobs = {}
     for _ in range(limit):
-        job = queue.dequeue(
+        res = queue.dequeue(
             hostname=hostname,
-            cpu_cores=cpu_cores,
-            memory=memory,
-            environment=environment,
-            gpu_model=gpu_model,
-            gpu_archi=gpu_archi,
-            gpu_mem=gpu_mem or 0,
-            groups=groups,
-            older_than=older_than or 0,
+            filter=JobFilter(
+                cpu_cores=cpu_cores,
+                memory=memory,
+                environment=environment,
+                gpu_model=gpu_model,
+                gpu_archi=gpu_archi,
+                gpu_mem=gpu_mem,
+                groups=groups,
+                older_than=older_than,
+            ),
         )
-        if job:
-            job_id = job.pop("job_id")
-            jobs.update({job_id: JobSpecs(**job)})
+        print("res", res)
+        if res:
+            jobs.update({res[0]: res[1]})
         else:
             break
     return jobs
@@ -66,7 +79,12 @@ async def put_job_status(
     queue: JobQueue = Depends(get_queue),
 ):
     hostname = request.state.current_user.username
-    return queue.update_job_status(job_id, status, runtime_details, hostname=hostname)
+    try:
+        return queue.update_job_status(
+            job_id, status, runtime_details, hostname=hostname
+        )
+    except ValueError:
+        raise HTTPException(status_code=httpstatus.HTTP_404_NOT_FOUND)
 
 
 class UploadType(enum.Enum):
@@ -82,7 +100,9 @@ def _upload_path(job, type, path):
 
 
 @router.post(
-    "/jobs/{job_id}/files/upload", status_code=status.HTTP_201_CREATED, tags=["Files"]
+    "/jobs/{job_id}/files/upload",
+    status_code=httpstatus.HTTP_201_CREATED,
+    tags=["Files"],
 )
 async def upload_file(
     request: Request,
@@ -100,7 +120,7 @@ async def upload_file(
 
 @router.post(
     "/jobs/{job_id}/files/url",
-    status_code=status.HTTP_201_CREATED,
+    status_code=httpstatus.HTTP_201_CREATED,
     response_model=FileHTTPRequest,
     tags=["Files"],
 )

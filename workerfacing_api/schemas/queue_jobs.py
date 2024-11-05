@@ -1,5 +1,5 @@
-import datetime
 import enum
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -8,12 +8,6 @@ class EnvironmentTypes(enum.Enum):
     cloud = "cloud"
     local = "local"
     any = None
-
-
-class OutputEndpoints(enum.Enum):
-    output = "output"
-    log = "log"
-    artifact = "artifact"
 
 
 class HardwareSpecs(BaseModel):
@@ -26,7 +20,7 @@ class HardwareSpecs(BaseModel):
 
 class MetaSpecs(BaseModel):
     job_id: int
-    date_created: datetime.datetime
+    date_created: str  # iso format
 
     class Config:
         extra = "allow"
@@ -43,7 +37,7 @@ class HandlerSpecs(BaseModel):
     image_version: str | None = None
     entrypoint: str | None = None
     files_down: dict[str, str] | None = None
-    files_up: dict[OutputEndpoints, str] | None = None
+    files_up: dict[Literal["output", "log", "artifact"], str] | None = None
 
 
 class JobSpecs(BaseModel):
@@ -59,9 +53,22 @@ class PathsUploadSpecs(BaseModel):
     artifact: str
 
 
-class QueueJob(BaseModel):
+class SubmittedJob(BaseModel):
     job: JobSpecs
-    environment: EnvironmentTypes | None = None
+    environment: EnvironmentTypes = EnvironmentTypes.any
     group: str | None = None
-    priority: int | None = None
+    priority: int = 5
     paths_upload: PathsUploadSpecs
+
+
+class JobFilter(BaseModel):
+    # common
+    environment: EnvironmentTypes
+    older_than: int = 0
+    # RDS queue
+    cpu_cores: int = 1
+    memory: int = 0
+    gpu_mem: int = 0
+    gpu_model: str | None = None
+    gpu_archi: str | None = None
+    groups: list[str] | None = None

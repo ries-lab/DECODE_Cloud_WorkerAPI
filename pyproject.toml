@@ -19,11 +19,11 @@ httpx = "^0.27.2"
 pydantic = "^2.9.2"
 python-multipart = "^0.0.12"
 requests = "^2.32.3"
-sqlalchemy = "^2.0.36"
 gunicorn = "^23.0.0"
 uvicorn = "^0.32.0"
 typing-inspect = "^0.9.0"
 psycopg2-binary = "^2.9.10"
+sqlalchemy = "^2.0.36"
 
 [tool.poetry.group.dev.dependencies]
 boto3-stubs = {extras = ["essential"], version = "^1.35.54"}
@@ -41,6 +41,7 @@ toml = "^0.10.2"
 types-toml = "^0.10.8.20240310"
 types-docker = "^7.1.0.20240827"
 types-boto3 = "^1.0.2"
+ipython = "^8.29.0"
 
 [build-system]
 requires = ["poetry-core=1.8.4"]

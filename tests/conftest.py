@@ -20,15 +20,25 @@ from workerfacing_api.dependencies import (
     filesystem_dep,
 )
 from workerfacing_api.main import workerfacing_app
+from workerfacing_api.schemas.queue_jobs import (
+    AppSpecs,
+    EnvironmentTypes,
+    HandlerSpecs,
+    HardwareSpecs,
+    JobSpecs,
+    MetaSpecs,
+    PathsUploadSpecs,
+    SubmittedJob,
+)
 
 base_dir = "test_user_dir"
 test_username = "test_user"
-example_app = {"application": "app", "version": "latest", "entrypoint": "test"}
-example_paths_upload = {
-    "output": f"{test_username}/out",
-    "log": f"{test_username}/log",
-    "artifact": f"{test_username}/artifact",
-}
+example_app = AppSpecs(cmd=["cmd"], env={"env": "var"})
+example_paths_upload = PathsUploadSpecs(
+    output=f"{test_username}/out",
+    log=f"{test_username}/log",
+    artifact=f"{test_username}/artifact",
+)
 
 
 @pytest.fixture(scope="module")
@@ -39,11 +49,6 @@ def data_file1_contents():
 @pytest.fixture(scope="module")
 def internal_api_key_secret():
     return "test_internal_api_key"
-
-
-@pytest.fixture(autouse=True)
-def env_name():
-    return "local"
 
 
 @pytest.fixture(scope="module")
@@ -193,83 +198,97 @@ def data_file1(env, base_filesystem, data_file1_name, data_file1_contents):
 
 @pytest.fixture(scope="function")
 def jobs(env, base_filesystem):
-    time_now = datetime.datetime.utcnow().isoformat()
+    time_now = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
-    paths_upload = example_paths_upload.copy()
-    for k, v in paths_upload.items():
+    paths_upload = example_paths_upload.model_copy()
+    for k in paths_upload.model_fields:
         if env == "local":
-            paths_upload[k] = f"{base_filesystem.base_post_path}/{v}"
+            path = f"{base_filesystem.base_post_path}/{getattr(paths_upload, k)}"
         else:
-            paths_upload[k] = f"s3://{base_filesystem.bucket}/{v}"
+            path = f"s3://{base_filesystem.bucket}/{getattr(paths_upload, k)}"
+        setattr(paths_upload, k, path)
 
-    common_base = {
+    common_job_base = {
         "app": example_app,
-        "handler": {"image_url": "u", "files_up": {"output": "out"}},
-        "hardware": {},
+        "handler": HandlerSpecs(image_url="u", files_up={"output": "out"}),
+        "hardware": HardwareSpecs(),
     }
-    job0 = {
-        "job": {**common_base, "meta": {"job_id": 0, "date_created": time_now}},
-        "paths_upload": paths_upload,
-    }
-    job1 = {
-        "job": {**common_base, "meta": {"job_id": 1, "date_created": time_now}},
-        "paths_upload": paths_upload,
-    }
-    job2 = {
-        "job": {**common_base, "meta": {"job_id": 2, "date_created": time_now}},
-        "paths_upload": paths_upload,
-    }
-    job3 = {
-        "job": {**common_base, "meta": {"job_id": 3, "date_created": time_now}},
-        "paths_upload": paths_upload,
-    }
+    common_base = {"paths_upload": paths_upload}
+    job0 = SubmittedJob(
+        job=JobSpecs(
+            **common_job_base, meta=MetaSpecs(job_id=0, date_created=time_now)
+        ),
+        environment=EnvironmentTypes.local,
+        **common_base,
+    )
+    job1 = SubmittedJob(
+        job=JobSpecs(
+            **common_job_base, meta=MetaSpecs(job_id=1, date_created=time_now)
+        ),
+        environment=EnvironmentTypes.local,
+        **common_base,
+    )
+    job2 = SubmittedJob(
+        job=JobSpecs(
+            **common_job_base, meta=MetaSpecs(job_id=2, date_created=time_now)
+        ),
+        environment=EnvironmentTypes.any,
+        **common_base,
+    )
+    job3 = SubmittedJob(
+        job=JobSpecs(
+            **common_job_base, meta=MetaSpecs(job_id=3, date_created=time_now)
+        ),
+        environment=EnvironmentTypes.cloud,
+        **common_base,
+    )
     return job0, job1, job2, job3
 
 
 @pytest.fixture(scope="function")
 def full_jobs(jobs):
-    job0, job1, job2, job3 = jobs
+    job0, job1, job2, job3 = [job.model_copy() for job in jobs]
 
-    job0["job"]["hardware"] = {
-        "cpu_cores": 3,
-        "memory": 2,
-        "gpu_model": "gpu_model",
-        "gpu_archi": "gpu_archi",
-        "gpu_mem": 0,
-    }
-    job0.update({"group": None, "priority": 5})
+    job0.job.hardware = HardwareSpecs(
+        gpu_model="gpu_model",
+        gpu_archi="gpu_archi",
+    )
+    job0.priority = 5
 
-    job1["job"]["hardware"] = {
-        "cpu_cores": 1,
-        "memory": 0,
-        "gpu_model": None,
-        "gpu_archi": None,
-        "gpu_mem": None,
-    }
-    job1.update({"group": None, "priority": 10})
+    job1.job.hardware = HardwareSpecs(
+        cpu_cores=2,
+        memory=0,
+        gpu_model=None,
+        gpu_archi=None,
+        gpu_mem=None,
+    )
+    job1.priority = 10
 
-    job2.update({"group": "group", "priority": 1})
+    job2.group = "group"
+    job2.priority = 1
+    job2.environment = EnvironmentTypes.local
 
-    job3.update({"priority": 1})
+    job3.priority = 1
+    job3.environment = EnvironmentTypes.local
 
     return job0, job1, job2, job3
 
 
 @pytest.fixture
-def populated_queue(queue, jobs, env_name):
-    job1, job2, job3, job4 = jobs
-    queue.enqueue(environment=env_name, item=job1)
-    queue.enqueue(environment=env_name, item=job2)
-    queue.enqueue(environment=None, item=job3)
-    queue.enqueue(environment=f"not-{env_name}", item=job4)
+def populated_queue(queue, jobs):
+    job0, job1, job2, job3 = jobs
+    queue.enqueue(job0)
+    queue.enqueue(job1)
+    queue.enqueue(job2)
+    queue.enqueue(job3)
     return queue
 
 
 @pytest.fixture
-def populated_full_queue(queue, full_jobs, env_name):
+def populated_full_queue(queue, full_jobs):
     job1, job2, job3, job4 = full_jobs
-    queue.enqueue(environment=env_name, item=job1)
-    queue.enqueue(environment=env_name, item=job2)
-    queue.enqueue(environment=env_name, item=job3)
-    queue.enqueue(environment=env_name, item=job4)
+    queue.enqueue(job1)
+    queue.enqueue(job2)
+    queue.enqueue(job3)
+    queue.enqueue(job4)
     return queue

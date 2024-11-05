@@ -14,6 +14,7 @@ from workerfacing_api.core.queue import (
     RDSJobQueue,
     SQSJobQueue,
 )
+from workerfacing_api.schemas.queue_jobs import EnvironmentTypes, JobFilter
 
 
 @pytest.fixture
@@ -41,73 +42,54 @@ class _TestJobQueue(abc.ABC):
         job_queue.delete()
 
     @pytest.fixture
-    def env_name(self):
-        return "test-queue"
+    def job_filter(self):
+        return JobFilter(environment=EnvironmentTypes.local)
 
-    def test_create_queue(self, queue, env_name):
+    def test_create_queue(self, queue, job_filter):
         # test queue is empty
-        assert queue.peek(hostname="i", environment=env_name)[0] is None
+        assert queue.peek(hostname="i", filter=job_filter) is None
 
-    def test_enqueue(self, populated_queue, env_name):
-        assert populated_queue.peek(hostname="i", environment=env_name)[0] is not None
+    def test_enqueue(self, populated_queue, job_filter):
+        assert populated_queue.peek(hostname="i", filter=job_filter) is not None
 
-    def test_peek(self, populated_queue, env_name):
-        assert (
-            populated_queue.peek(hostname="i", environment=env_name)[0]["meta"][
-                "job_id"
-            ]
-            == 0
-        )
+    def test_peek(self, populated_queue, job_filter):
+        assert populated_queue.peek(hostname="i", filter=job_filter)[1].meta.job_id == 0
         # peeking does not remove elements
-        assert (
-            populated_queue.peek(hostname="i", environment=env_name)[0]["meta"][
-                "job_id"
-            ]
-            == 0
-        )
+        assert populated_queue.peek(hostname="i", filter=job_filter)[1].meta.job_id == 0
 
-    def test_dequeue(self, populated_queue, env_name):
+    def test_dequeue(self, populated_queue, job_filter):
         assert (
-            populated_queue.dequeue(hostname="i", environment=env_name)["meta"][
-                "job_id"
-            ]
-            == 0
+            populated_queue.dequeue(hostname="i", filter=job_filter)[1].meta.job_id == 0
         )
         # dequeue removes elements
         assert (
-            populated_queue.dequeue(hostname="i", environment=env_name)["meta"][
-                "job_id"
-            ]
-            == 1
+            populated_queue.dequeue(hostname="i", filter=job_filter)[1].meta.job_id == 1
         )
         # None env jobs can be pulled by everyone
         assert (
-            populated_queue.dequeue(hostname="i", environment=None)["meta"]["job_id"]
-            == 2
+            populated_queue.dequeue(hostname="i", filter=job_filter)[1].meta.job_id == 2
         )
         # environment is filtered correctly
-        assert populated_queue.dequeue(hostname="i", environment=env_name) is None
+        assert populated_queue.dequeue(hostname="i", filter=job_filter) is None
 
-    def test_dequeue_old(self, populated_queue, env_name):
-        # not old enough
-        assert (
-            populated_queue.dequeue(hostname="i", environment=env_name, older_than=2)
-            is None
-        )
-        # old enough
-        time.sleep(2)
-        assert (
-            populated_queue.dequeue(hostname="i", environment=env_name, older_than=2)
-            is not None
-        )
+    def test_dequeue_old(self, populated_queue, job_filter):
+        filter = job_filter.model_copy()
+        filter.older_than = 15
+        # jobs in the same environment can immediately be pulled
+        assert populated_queue.dequeue(hostname="i", filter=filter) is not None
+        assert populated_queue.dequeue(hostname="i", filter=filter) is not None
+        # jobs in the "any" environment must be old enough
+        assert populated_queue.dequeue(hostname="i", filter=filter) is None
+        time.sleep(15)
+        assert populated_queue.dequeue(hostname="i", filter=filter) is not None
 
-    def test_concurrent_pulls(self, populated_full_queue, env_name):
+    def test_concurrent_pulls(self, populated_full_queue, job_filter):
         found_jobs = [None] * 100
 
         def _pull(i):
             time.sleep(random.random() * 5)  # ensure enough time to pull all jobs
             found_jobs[i] = populated_full_queue.dequeue(
-                hostname="i", environment=env_name
+                hostname="i", filter=job_filter
             )
 
         threads = []
@@ -120,9 +102,7 @@ class _TestJobQueue(abc.ABC):
             thread.join()
         found_jobs = [job for job in found_jobs if job is not None]
         # no duplicates
-        assert len(found_jobs) == len(
-            set([job["meta"]["job_id"] for job in found_jobs])
-        )
+        assert len(found_jobs) == len(set([job[1].meta.job_id for job in found_jobs]))
 
 
 class TestLocalQueue(_TestJobQueue):
@@ -138,11 +118,8 @@ class TestLocalQueue(_TestJobQueue):
 
 class TestSQSQueue(_TestJobQueue):
     @pytest.fixture
-    def job_queue(self, skip_local, env_name):
-        # need new env name for each test (SQS queues can't be recreated after less than 60 seconds)
-        job_queue = SQSJobQueue(
-            [env_name, f"not-{env_name}"], boto3.client("sqs", "eu-central-1")
-        )
+    def job_queue(self, skip_local):
+        job_queue = SQSJobQueue(boto3.client("sqs", "eu-central-1"))
         # wait for queue to be deleted before recreating
         while True:
             try:
@@ -153,120 +130,132 @@ class TestSQSQueue(_TestJobQueue):
         return job_queue
 
 
-def _patched_func(queue, func_name):
-    to_patch = getattr(queue, func_name)
-
-    def patch(*args, **kwargs):
-        for required_arg in ("cpu_cores", "memory", "gpu_mem"):
-            if required_arg not in kwargs:
-                kwargs[required_arg] = 9999
-        return to_patch(*args, **kwargs)
-
-    return patch
-
-
-@pytest.fixture(autouse=True, scope="module")
-def patch_queue_funcs(monkeypatch_module):
-    monkeypatch_module.setattr(RDSJobQueue, "peek", _patched_func(RDSJobQueue, "peek"))
-    monkeypatch_module.setattr(
-        RDSJobQueue, "dequeue", _patched_func(RDSJobQueue, "dequeue")
-    )
-
-
 class TestRDSLocalQueue(_TestJobQueue):
     @pytest.fixture(scope="function")
-    def job_queue(self, skip_aws, tmpdir, env_name):
-        job_queue = RDSJobQueue(f"sqlite:///{tmpdir}/{env_name}.db")
+    def job_queue(self, skip_aws, tmpdir):
+        job_queue = RDSJobQueue(f"sqlite:///{tmpdir}/local.db")
         job_queue.create()
         return job_queue
 
     # additional tests for additional functionality
-    def test_filtering(self, populated_full_queue, env_name):
+    def test_filtering(self, populated_full_queue):
         assert (
             populated_full_queue.peek(
-                hostname="i", environment=env_name, cpu_cores=2, memory=1
-            )[0]["meta"]["job_id"]
-            == 1
-        )
-        assert (
-            populated_full_queue.peek(hostname="i", environment=env_name, memory=1)[0][
-                "meta"
-            ]["job_id"]
+                hostname="i",
+                filter=JobFilter(
+                    environment=EnvironmentTypes.local, cpu_cores=2, memory=1
+                ),
+            )[1].meta.job_id
             == 1
         )
         assert (
             populated_full_queue.peek(
-                hostname="i", environment=env_name, gpu_model="gpu_model"
-            )[0]["meta"]["job_id"]
-            == 1
+                hostname="i",
+                filter=JobFilter(environment=EnvironmentTypes.local, memory=1),
+            )[1].meta.job_id
+            == 2
         )
         assert (
             populated_full_queue.peek(
-                hostname="i", environment=env_name, gpu_archi="gpu_archi"
-            )[0]["meta"]["job_id"]
-            == 1
+                hostname="i",
+                filter=JobFilter(
+                    environment=EnvironmentTypes.local,
+                    gpu_model="gpu_model",
+                    gpu_archi="gpu_archi",
+                ),
+            )[1].meta.job_id
+            == 0
         )
 
-    def test_priorities(self, populated_full_queue, env_name):
+    def test_priorities(self, populated_full_queue):
+        common_filter = {
+            "cpu_cores": 10,
+            "memory": 10,
+        }
         # group priority
         assert (
             populated_full_queue.dequeue(
-                hostname="i", environment=env_name, groups=["group", "another group"]
-            )["meta"]["job_id"]
+                hostname="i",
+                filter=JobFilter(
+                    environment=EnvironmentTypes.local,
+                    groups=["group", "another group"],
+                    **common_filter,
+                ),
+            )[1].meta.job_id
             == 2
         )
         # job priority
         assert (
-            populated_full_queue.dequeue(hostname="i", environment=env_name)["meta"][
-                "job_id"
-            ]
+            populated_full_queue.dequeue(
+                hostname="i",
+                filter=JobFilter(environment=EnvironmentTypes.local, **common_filter),
+            )[1].meta.job_id
             == 1
         )
         assert (
-            populated_full_queue.dequeue(hostname="i", environment=env_name)["meta"][
-                "job_id"
-            ]
+            populated_full_queue.dequeue(
+                hostname="i",
+                filter=JobFilter(environment=EnvironmentTypes.local, **common_filter),
+            )[1].meta.job_id
             == 3
         )
 
-    def test_dequeue_old(self, populated_queue, env_name):
+    def test_dequeue_old(self, populated_queue):
         # older_than does not apply when the right environment is selected
         # not old enough
         assert (
-            populated_queue.dequeue(hostname="i", environment=env_name, older_than=5)
+            populated_queue.dequeue(
+                hostname="i",
+                filter=JobFilter(environment=EnvironmentTypes.local, older_than=5),
+            )
             is not None
         )
         assert (
-            populated_queue.dequeue(hostname="i", environment=env_name, older_than=5)
+            populated_queue.dequeue(
+                hostname="i",
+                filter=JobFilter(environment=EnvironmentTypes.local, older_than=5),
+            )
             is not None
         )
         assert (
-            populated_queue.dequeue(hostname="i", environment=env_name, older_than=5)
+            populated_queue.dequeue(
+                hostname="i",
+                filter=JobFilter(environment=EnvironmentTypes.local, older_than=5),
+            )
             is None
         )
         # old enough
         time.sleep(5)
         assert (
-            populated_queue.dequeue(hostname="i", environment=env_name, older_than=5)
+            populated_queue.dequeue(
+                hostname="i",
+                filter=JobFilter(environment=EnvironmentTypes.local, older_than=5),
+            )
             is not None
         )
 
-    def test_failures(self, populated_full_queue, env_name):
-        job_id = populated_full_queue.dequeue(hostname="first", environment=env_name)[
-            "job_id"
-        ]
-        res = populated_full_queue.dequeue(hostname="second", environment=env_name)
-        assert not res or res["job_id"] != job_id
+    def test_failures(self, populated_full_queue):
+        job_id = populated_full_queue.dequeue(
+            hostname="first", filter=JobFilter(environment=EnvironmentTypes.local)
+        )[0]
+        res = populated_full_queue.dequeue(
+            hostname="second", filter=JobFilter(environment=EnvironmentTypes.local)
+        )
+        assert not res or res[0] != job_id
         # fail -> requeue
         time.sleep(6)
         populated_full_queue.handle_timeouts(max_retries=1, timeout_failure=5)
         assert populated_full_queue.get_job(job_id).status == "queued"
         # same worker can not repull
-        res = populated_full_queue.dequeue(hostname="first", environment=env_name)
-        assert not res or res["job_id"] != job_id
+        res = populated_full_queue.dequeue(
+            hostname="first", filter=JobFilter(environment=EnvironmentTypes.local)
+        )
+        assert not res or res[0] != job_id
         # different worker can repull
-        res = populated_full_queue.dequeue(hostname="second", environment=env_name)
-        assert res["job_id"] == job_id
+        res = populated_full_queue.dequeue(
+            hostname="second", filter=JobFilter(environment=EnvironmentTypes.local)
+        )
+        assert res[0] == job_id
         # first worker cannot update
         with pytest.raises(Exception):
             populated_full_queue.update_job_status(

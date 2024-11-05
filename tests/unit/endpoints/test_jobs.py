@@ -25,16 +25,17 @@ def queue(monkeypatch_module, tmpdir):
 
 
 def test_get_jobs(populated_full_queue, patch_update_job):
-    client.get(
+    resp = client.get(
         endpoint,
         params={"cpu_cores": 999, "memory": 999},
     )
+    assert resp.status_code == 200
     patch_update_job.assert_called_once_with(1, JobStates.pulled, None)
 
 
 def test_get_jobs_required_params(populated_full_queue):
-    required = ["cpu_cores", "memory"]
-    base_query_params = {"cpu_cores": 2, "memory": 1}
+    required = ["memory"]
+    base_query_params = {"memory": 1}
     for param in required:
         query_params = base_query_params.copy()
         del query_params[param]
@@ -167,6 +168,6 @@ def test_job_files_post(full_jobs, populated_full_queue, base_filesystem):
         },
     )
     assert res.status_code == 201
-    path = f"{job['paths_upload']['output']}/{file_name}"
+    path = f"{job.paths_upload.output}/{file_name}"
     res = client.get(f"/files/{path}/url")
     assert res.status_code == 200
