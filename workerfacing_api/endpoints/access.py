@@ -15,8 +15,12 @@ class AccessType(enum.Enum):
     COGNITO = "cognito"
 
 
-@router.get("/access_info", response_model=dict[AccessType, dict])
-def get_access_info():
+@router.get(
+    "/access_info",
+    response_model=dict[AccessType, dict[str, str | None]],
+    description="Get information about where API users should authenticate.",
+)
+def get_access_info() -> dict[AccessType, dict[str, str | None]]:
     return {
         AccessType.COGNITO: {
             "user_pool_id": cognito_user_pool_id,

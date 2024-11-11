@@ -169,7 +169,7 @@ class LocalJobQueue(JobQueue):
         self, hostname: str, filter: JobFilter
     ) -> tuple[int, JobSpecs, str] | None:
         if extra_fields := (filter.model_fields_set - {"environment", "older_than"}):
-            raise ValueError(f"{extra_fields} not accepted as filters for {type(self)}")
+            raise TypeError(f"{extra_fields} not accepted as filters for {type(self)}")
         with open(self.queue_path, "rb+") as f:
             queue = pickle.load(f)
         queue_item: dict[str, Any] = {}
@@ -269,13 +269,13 @@ class SQSJobQueue(JobQueue):
                 MessageGroupId="0",
             )
         except botocore.exceptions.ClientError as error:
-            raise ValueError(f"Error sending message to SQS queue: {error}.")
+            raise RuntimeError(f"Error sending message to SQS queue: {error}.")
 
     def peek(
         self, hostname: str, filter: JobFilter
     ) -> tuple[int, JobSpecs, str] | None:
         if extra_fields := (filter.model_fields_set - {"environment", "older_than"}):
-            raise ValueError(f"{extra_fields} filters not accepted for {type(self)}")
+            raise TypeError(f"{extra_fields} filters not accepted for {type(self)}")
         # older_than argument not supported
         try:
             response = self.sqs_client.receive_message(
@@ -293,7 +293,7 @@ class SQSJobQueue(JobQueue):
                 )
                 env = EnvironmentTypes.any
         except botocore.exceptions.ClientError as error:
-            raise ValueError(f"Error receiving message from SQS queue: {error}.")
+            raise RuntimeError(f"Error receiving message from SQS queue: {error}.")
         if len(response.get("Messages", [])):
             message = response["Messages"][0]
             message_body = message["Body"]

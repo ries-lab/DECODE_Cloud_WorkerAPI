@@ -1,5 +1,3 @@
-import pytest
-from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from workerfacing_api.main import workerfacing_app
@@ -15,8 +13,8 @@ def test_get_file(
         file_resp = client.get(f"{endpoint}/{data_file1_name}/download")
         assert file_resp.content.decode("utf-8") == data_file1_contents
     else:
-        with pytest.raises(HTTPException):
-            base_filesystem.get_file(data_file1_name)
+        file_resp = client.get(f"{endpoint}/{data_file1_name}/download")
+        assert file_resp.status_code == 403
 
 
 def test_get_file_not_exists(env, base_filesystem, data_file1):
@@ -33,5 +31,10 @@ def test_get_file_url(env, base_filesystem, data_file1, data_file1_name):
 
 
 def test_get_file_url_not_exists(env, base_filesystem, data_file1_name):
-    url_resp = client.get(f"{endpoint}/not_exists/url")
+    url_resp = client.get(f"{endpoint}/{data_file1_name}_fake/url")
     assert url_resp.status_code == 404
+
+
+def test_get_file_url_not_permitted(env, base_filesystem, data_file1_name):
+    url_resp = client.get(f"{endpoint}/wrong_dir/url")
+    assert url_resp.status_code == 403

@@ -4,9 +4,9 @@ import shutil
 from io import BytesIO
 from unittest.mock import MagicMock
 
+import boto3
 import dotenv
 import pytest
-from fastapi import UploadFile
 
 dotenv.load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
@@ -31,7 +31,6 @@ from workerfacing_api.schemas.queue_jobs import (
     SubmittedJob,
 )
 
-base_dir = "test_user_dir"
 test_username = "test_user"
 example_app = AppSpecs(cmd=["cmd"], env={"env": "var"})
 example_paths_upload = PathsUploadSpecs(
@@ -39,6 +38,11 @@ example_paths_upload = PathsUploadSpecs(
     log=f"{test_username}/log",
     artifact=f"{test_username}/artifact",
 )
+
+
+@pytest.fixture(scope="module")
+def base_dir():
+    return "test_user_dir"
 
 
 @pytest.fixture(scope="module")
@@ -73,10 +77,9 @@ def env(request):
 
 
 @pytest.fixture(scope="module")
-def base_filesystem(env, monkeypatch_module):
+def base_filesystem(env, base_dir, monkeypatch_module):
     bucket_name = "decode-cloud-tests-bucket"
     region_name = "eu-central-1"
-    global base_dir
 
     monkeypatch_module.setattr(
         settings,
@@ -107,8 +110,6 @@ def base_filesystem(env, monkeypatch_module):
         from moto import mock_aws
 
         with mock_aws():
-            import boto3
-
             from workerfacing_api.core.filesystem import S3Filesystem
 
             s3_client = boto3.client("s3", region_name=region_name)
@@ -119,8 +120,6 @@ def base_filesystem(env, monkeypatch_module):
             yield S3Filesystem(s3_client, bucket_name)
 
     elif env == "aws":
-        import boto3
-
         from workerfacing_api.core.filesystem import S3Filesystem
 
         s3_client = boto3.client("s3", region_name=region_name)
@@ -180,7 +179,7 @@ def require_auth(monkeypatch):
 
 
 @pytest.fixture
-def data_file1_name(env, base_filesystem):
+def data_file1_name(env, base_dir, base_filesystem):
     if env == "local":
         yield f"{base_dir}/data/test/data_file1.txt"
     else:
@@ -190,10 +189,16 @@ def data_file1_name(env, base_filesystem):
 @pytest.fixture
 def data_file1(env, base_filesystem, data_file1_name, data_file1_contents):
     file_name = data_file1_name
-    base_filesystem.post_file(
-        UploadFile(filename="", file=BytesIO(bytes(data_file1_contents, "utf-8"))),
-        file_name,
-    )
+    if env == "local":
+        os.makedirs(os.path.dirname(file_name), exist_ok=True)
+        with open(file_name, "w") as f:
+            f.write(data_file1_contents)
+    else:  # s3
+        base_filesystem.s3_client.put_object(
+            Bucket=base_filesystem.bucket,
+            Key=file_name,
+            Body=BytesIO(data_file1_contents.encode("utf-8")),
+        )
 
 
 @pytest.fixture(scope="function")

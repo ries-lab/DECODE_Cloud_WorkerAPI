@@ -2,6 +2,7 @@ import time
 from io import BytesIO
 
 import pytest
+import requests
 from fastapi.testclient import TestClient
 
 from workerfacing_api.core import queue as core_queue
@@ -138,27 +139,34 @@ def test_get_job_status(populated_full_queue):
 def test_put_job_status(populated_full_queue):
     # job needs to be pulled in order to update its status
     res = client.put(f"{endpoint}/1/status", params={"status": "running"})
-    assert str(res.status_code).startswith("4")
+    assert res.status_code == 404
     resp = client.get(endpoint, params={"cpu_cores": 999, "memory": 999})
     job_id = list(resp.json().keys())[0]
     res = client.put(f"{endpoint}/{job_id}/status", params={"status": "running"})
-    assert res.status_code == 200
+    assert res.status_code == 204
     res = client.get(f"{endpoint}/{job_id}/status")
     assert res.json() == "running"
 
 
-def test_job_files_post(full_jobs, populated_full_queue, base_filesystem):
+def test_job_files_post(env, full_jobs, populated_full_queue, base_filesystem):
     file_name = "test_file.txt"
     content = "test content"
-    job = full_jobs[0]
     job_dequeue = client.get(
         endpoint,
         params={"cpu_cores": 999, "memory": 999},
     ).json()
     job_id, job_dequeue = list(job_dequeue.items())[0]
     res = client.post(
-        f"{endpoint}/{job_id}/files/upload",
-        params={"type": "output", "path": file_name},
+        f"{endpoint}/{job_id}/files/url",
+        params={"type": "output", "base_path": ""},
+    )
+    assert res.status_code == 201
+    if env == "local":
+        req_base = client
+    else:
+        req_base = requests
+    res = req_base.request(
+        **res.json(),
         files={
             "file": (
                 file_name,
@@ -167,7 +175,4 @@ def test_job_files_post(full_jobs, populated_full_queue, base_filesystem):
             ),
         },
     )
-    assert res.status_code == 201
-    path = f"{job.paths_upload.output}/{file_name}"
-    res = client.get(f"/files/{path}/url")
-    assert res.status_code == 200
+    assert str(res.status_code).startswith("2")

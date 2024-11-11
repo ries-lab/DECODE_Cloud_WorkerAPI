@@ -4,7 +4,7 @@ import re
 import shutil
 from pathlib import Path
 
-from fastapi import HTTPException, Request, UploadFile, status
+from fastapi import Request, UploadFile
 from fastapi.responses import FileResponse
 from mypy_boto3_s3 import S3Client
 
@@ -42,31 +42,31 @@ class LocalFilesystem(FileSystem):
 
     def get_file(self, path: str) -> FileResponse:
         if Path(self.base_get_path) not in Path(path).parents:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Path is not in base directory",
-            )
+            raise PermissionError("Path is not in base directory")
         if not os.path.exists(path):
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+            raise FileNotFoundError()
         return FileResponse(path)
 
     def get_file_url(
         self, path: str, request: Request, url_endpoint: str, files_endpoint: str
     ) -> FileHTTPRequest:
+        if Path(self.base_get_path) not in Path(path).parents:
+            raise PermissionError("Path is not in base directory")
         if not os.path.exists(path):
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+            raise FileNotFoundError()
         return FileHTTPRequest(
             url=re.sub(url_endpoint, files_endpoint, request.url._url),
             method="get",
-            headers={"authorization": request.headers.get("authorization")},
+            headers=(
+                {"authorization": request.headers["authorization"]}
+                if "authorization" in request.headers
+                else {}
+            ),
         )
 
     def post_file(self, file: UploadFile, path: str) -> None:
         if Path(self.base_post_path) not in Path(path).parents:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Path is not in base directory",
-            )
+            raise PermissionError("Path is not in base directory")
         try:
             os.makedirs(Path(path).parent, exist_ok=True)
             with open(path, "wb") as f:
@@ -78,14 +78,15 @@ class LocalFilesystem(FileSystem):
         self, path: str, request: Request, url_endpoint: str, files_endpoint: str
     ) -> FileHTTPRequest:
         if Path(self.base_post_path) not in Path(path).parents:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Path is not in base directory",
-            )
+            raise PermissionError("Path is not in base directory")
         return FileHTTPRequest(
             url=re.sub(url_endpoint, files_endpoint, request.url._url),
             method="post",
-            headers={"authorization": request.headers.get("authorization")},
+            headers=(
+                {"authorization": request.headers["authorization"]}
+                if "authorization" in request.headers
+                else {}
+            ),
         )
 
 
@@ -97,27 +98,24 @@ class S3Filesystem(FileSystem):
         self.bucket = bucket
 
     def get_file(self, path: str) -> FileResponse:
-        raise HTTPException(
-            status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
-            detail="Please get a pre-signed url instead.",
-        )
+        raise PermissionError("Please get a pre-signed url instead.")
 
     def _get_bucket_path(self, path: str) -> tuple[str, str]:
         if not path.startswith("s3://"):
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+            raise PermissionError("Path should start with s3://")
         bucket, _, path = path[5:].partition("/")
         if not bucket == self.bucket:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+            raise PermissionError("Bucket does not match")
         return bucket, path
 
     def get_file_url(
         self, path: str, request: Request, url_endpoint: str, files_endpoint: str
     ) -> FileHTTPRequest:
-        bucket, path = self._get_bucket_path(path)
+        bucket, _ = self._get_bucket_path(path)
 
         response = self.s3_client.list_objects_v2(Bucket=bucket, Prefix=path)
         if "Contents" not in response:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+            raise FileNotFoundError()
 
         return FileHTTPRequest(
             url=self.s3_client.generate_presigned_url(
@@ -129,8 +127,9 @@ class S3Filesystem(FileSystem):
         )
 
     def post_file(self, file: UploadFile, path: str) -> None:
-        bucket, path = self._get_bucket_path(path)
-        self.s3_client.upload_fileobj(file.file, bucket, path)
+        raise PermissionError("Please get a pre-signed url instead.")
+        # bucket, path = self._get_bucket_path(path)
+        # self.s3_client.upload_fileobj(file.file, bucket, path)
 
     def post_file_url(
         self, path: str, request: Request, url_endpoint: str, files_endpoint: str
