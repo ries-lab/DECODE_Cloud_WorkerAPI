@@ -1,11 +1,12 @@
-import typing
+from typing import Any, Coroutine
 
 import boto3
 from botocore.config import Config
 from botocore.utils import fix_s3_host
 from fastapi import Depends, Header, HTTPException, Request
+from fastapi.security import HTTPAuthorizationCredentials
 from fastapi_cloudauth.cognito import CognitoClaims, CognitoCurrentUser  # type: ignore
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 from workerfacing_api import settings
 from workerfacing_api.core import filesystem, queue
@@ -26,7 +27,7 @@ class APIKeyDependency:
     def __init__(self, key: str | None):
         self.key = key
 
-    def __call__(self, x_api_key: typing.Optional[str] = Header(...)):
+    def __call__(self, x_api_key: str | None = Header(...)) -> str | None:
         if x_api_key != self.key:
             raise HTTPException(status_code=401, detail="unauthorized")
         return x_api_key
@@ -36,14 +37,14 @@ authorizer = APIKeyDependency(key=settings.internal_api_key_secret)
 
 
 # Worker authentication
-class GroupClaims(CognitoClaims):
+class GroupClaims(CognitoClaims):  # type: ignore
     cognito_groups: list[str] | None = Field(alias="cognito:groups")
 
 
-class WorkerGroupCognitoCurrentUser(CognitoCurrentUser):
+class WorkerGroupCognitoCurrentUser(CognitoCurrentUser):  # type: ignore
     user_info = GroupClaims
 
-    async def call(self, http_auth):
+    async def call(self, http_auth: HTTPAuthorizationCredentials) -> Any:
         user_info = await super().call(http_auth)
         if "workers" not in (getattr(user_info, "cognito_groups") or []):
             raise HTTPException(
@@ -61,13 +62,13 @@ current_user_dep = WorkerGroupCognitoCurrentUser(
 
 async def current_user_global_dep(
     request: Request, current_user: CognitoClaims = Depends(current_user_dep)
-):
+) -> CognitoClaims:
     request.state.current_user = current_user
     return current_user
 
 
 # Files
-async def filesystem_dep():
+async def filesystem_dep() -> filesystem.FileSystem:
     if settings.filesystem == "s3":
         s3_client = boto3.client(
             "s3",
@@ -76,9 +77,12 @@ async def filesystem_dep():
         )
         # this and config=... required to avoid DNS problems with new buckets
         s3_client.meta.events.unregister("before-sign.s3", fix_s3_host)
-        s3_bucket = settings.s3_bucket
-        return filesystem.S3Filesystem(s3_client, s3_bucket)
+        if settings.s3_bucket is None:
+            raise ValueError("S3 bucket not configured")
+        return filesystem.S3Filesystem(s3_client, settings.s3_bucket)
     elif settings.filesystem == "local":
+        if settings.user_data_root_path is None:
+            raise ValueError("Local filesystem requires user_data_root_path")
         return filesystem.LocalFilesystem(
             settings.user_data_root_path, settings.user_data_root_path
         )

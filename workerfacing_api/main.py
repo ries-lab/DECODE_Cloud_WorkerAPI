@@ -30,9 +30,9 @@ workerfacing_app.include_router(
 queue = dependencies.get_queue()
 
 
-@workerfacing_app.on_event("startup")
+@workerfacing_app.on_event("startup")  # type: ignore
 @repeat_every(seconds=60, raise_exceptions=True)
-async def find_failed_jobs():
+async def find_failed_jobs() -> dict[str, int]:
     print("Silent fails check: starting...")
     try:
         max_retries = settings.max_retries
@@ -42,8 +42,9 @@ async def find_failed_jobs():
         return {"n_retry": n_retry, "n_fail": n_fail}
     except Exception as e:
         print(f"Silent fails check: failed with {e}")
+        return {"n_retry": 0, "n_fail": 0}
 
 
 @workerfacing_app.get("/")
-async def root():
+async def root() -> dict[str, str]:
     return {"message": "Welcome to the DECODE OpenCloud Worker-facing API"}
