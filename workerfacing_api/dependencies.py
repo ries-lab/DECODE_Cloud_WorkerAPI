@@ -1,4 +1,4 @@
-from typing import Any, Coroutine
+from typing import Any
 
 import boto3
 from botocore.config import Config
@@ -6,7 +6,7 @@ from botocore.utils import fix_s3_host
 from fastapi import Depends, Header, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials
 from fastapi_cloudauth.cognito import CognitoClaims, CognitoCurrentUser  # type: ignore
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from workerfacing_api import settings
 from workerfacing_api.core import filesystem, queue
