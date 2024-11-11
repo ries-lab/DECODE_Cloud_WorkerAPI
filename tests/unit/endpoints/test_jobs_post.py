@@ -1,4 +1,5 @@
 import datetime
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -12,11 +13,13 @@ endpoint = "/_jobs"
 
 
 @pytest.fixture(scope="function")
-def queue_enqueue(monkeypatch_module):
+def queue_enqueue(
+    monkeypatch_module: pytest.MonkeyPatch,
+) -> MagicMock:
     queue = MagicMock()
     queue.enqueue = MagicMock()
     monkeypatch_module.setitem(
-        workerfacing_app.dependency_overrides,
+        workerfacing_app.dependency_overrides,  # type: ignore
         get_queue,
         lambda: queue,
     )
@@ -24,7 +27,7 @@ def queue_enqueue(monkeypatch_module):
 
 
 @pytest.fixture(scope="function")
-def queue_job():
+def queue_job() -> dict[str, Any]:
     return {
         "job": {
             "app": {},
@@ -37,7 +40,12 @@ def queue_job():
     }
 
 
-def test_post_job(queue_enqueue, queue_job, patch_update_job, internal_api_key_secret):
+def test_post_job(
+    queue_enqueue: MagicMock,
+    queue_job: dict[str, Any],
+    patch_update_job: MagicMock,
+    internal_api_key_secret: str,
+) -> None:
     resp = client.post(
         endpoint, headers={"x-api-key": internal_api_key_secret}, json=queue_job
     )
