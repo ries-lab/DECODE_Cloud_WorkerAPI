@@ -1,6 +1,5 @@
 import enum
 import os
-import re
 
 from fastapi import (
     APIRouter,
@@ -17,7 +16,7 @@ from fastapi import (
 
 from workerfacing_api.core.filesystem import FileSystem
 from workerfacing_api.core.queue import RDSJobQueue
-from workerfacing_api.dependencies import filesystem_dep, get_queue
+from workerfacing_api.dependencies import filesystem_dep, queue_dep
 from workerfacing_api.schemas.files import FileHTTPRequest
 from workerfacing_api.schemas.queue_jobs import (
     EnvironmentTypes,
@@ -45,7 +44,7 @@ async def get_jobs(
     groups: list[str] | None = Query(None),
     limit: int = 1,
     older_than: int = 0,
-    queue: RDSJobQueue = Depends(get_queue),
+    queue: RDSJobQueue = Depends(queue_dep),
 ) -> dict[int, JobSpecs]:
     hostname = request.state.current_user.username
     environment = (
@@ -88,7 +87,7 @@ async def get_jobs(
     description="Get the status of a job",
 )
 async def get_job_status(
-    job_id: int, queue: RDSJobQueue = Depends(get_queue)
+    job_id: int, queue: RDSJobQueue = Depends(queue_dep)
 ) -> JobStates:
     try:
         return queue.get_job(job_id).status  # type: ignore
@@ -107,7 +106,7 @@ async def put_job_status(
     job_id: int,
     status: JobStates,
     runtime_details: str | None = None,
-    queue: RDSJobQueue = Depends(get_queue),
+    queue: RDSJobQueue = Depends(queue_dep),
 ) -> None:
     hostname = request.state.current_user.username
     try:
@@ -139,16 +138,16 @@ async def upload_file(
     request: Request,
     job_id: int,
     type: UploadType,
-    path: str,
+    base_path: str,
     file: UploadFile = File(...),
     filesystem: FileSystem = Depends(filesystem_dep),
-    queue: RDSJobQueue = Depends(get_queue),
+    queue: RDSJobQueue = Depends(queue_dep),
 ) -> None:
     try:
         job = queue.get_job(job_id, hostname=request.state.current_user.username)
     except ValueError:
         raise HTTPException(status_code=httpstatus.HTTP_404_NOT_FOUND)
-    path = _upload_path(job, type, path)
+    path = _upload_path(job, type, base_path)
     try:
         return filesystem.post_file(file, path)
     except PermissionError as e:
@@ -168,7 +167,7 @@ async def get_upload_presigned_url(
     type: UploadType,
     base_path: str = "",
     filesystem: FileSystem = Depends(filesystem_dep),
-    queue: RDSJobQueue = Depends(get_queue),
+    queue: RDSJobQueue = Depends(queue_dep),
 ) -> FileHTTPRequest:
     try:
         job = queue.get_job(job_id, hostname=request.state.current_user.username)
@@ -176,8 +175,6 @@ async def get_upload_presigned_url(
         raise HTTPException(status_code=httpstatus.HTTP_404_NOT_FOUND)
     path = _upload_path(job, type, base_path)
     try:
-        return filesystem.post_file_url(
-            path, request, re.escape("/url") + "$", "/upload"
-        )
+        return filesystem.post_file_url(path, request, "/url", "/upload")
     except PermissionError as e:
         raise HTTPException(status_code=httpstatus.HTTP_403_FORBIDDEN, detail=str(e))

@@ -30,7 +30,7 @@ jobs:
       run: poetry run mypy .
   tests:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 60
     steps:
     - uses: actions/checkout@v4
     - name: Install poetry
@@ -41,5 +41,20 @@ jobs:
         cache: 'poetry'
     - name: Install dependencies
       run: poetry install
+    - name: configure AWS
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.TESTS_AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.TESTS_AWS_SECRET_ACCESS_KEY }}
+        aws-region: eu-central-1
     - name: Run tests
-      run: poetry run pytest --doctest-modules --junitxml=junit/test-results.xml --cov=com --cov-report=xml --cov-report=html
+      run: |
+        poetry run pytest -m "aws or not(aws)" --junitxml=pytest.xml --cov-report=term-missing --cov=workerfacing_api | tee pytest-coverage.txt
+        echo "test_exit_code=${PIPESTATUS[0]}" >> $GITHUB_ENV
+    - name: Coverage comment
+      uses: MishaKav/pytest-coverage-comment@main
+      with:
+        pytest-coverage-path: ./pytest-coverage.txt
+        junitxml-path: ./pytest.xml
+    - name: Fail on test failure
+      run: exit ${{ env.test_exit_code }}

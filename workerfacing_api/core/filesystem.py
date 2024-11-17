@@ -68,8 +68,8 @@ class LocalFilesystem(FileSystem):
         if Path(self.base_post_path) not in Path(path).parents:
             raise PermissionError("Path is not in base directory")
         try:
-            os.makedirs(Path(path).parent, exist_ok=True)
-            with open(path, "wb") as f:
+            os.makedirs(path, exist_ok=True)
+            with open(os.path.join(path, file.filename or "unnamed"), "wb") as f:
                 shutil.copyfileobj(file.file, f)
         finally:
             file.file.close()
@@ -111,7 +111,7 @@ class S3Filesystem(FileSystem):
     def get_file_url(
         self, path: str, request: Request, url_endpoint: str, files_endpoint: str
     ) -> FileHTTPRequest:
-        bucket, _ = self._get_bucket_path(path)
+        bucket, path = self._get_bucket_path(path)
 
         response = self.s3_client.list_objects_v2(Bucket=bucket, Prefix=path)
         if "Contents" not in response:
@@ -128,8 +128,6 @@ class S3Filesystem(FileSystem):
 
     def post_file(self, file: UploadFile, path: str) -> None:
         raise PermissionError("Please get a pre-signed url instead.")
-        # bucket, path = self._get_bucket_path(path)
-        # self.s3_client.upload_fileobj(file.file, bucket, path)
 
     def post_file_url(
         self, path: str, request: Request, url_endpoint: str, files_endpoint: str

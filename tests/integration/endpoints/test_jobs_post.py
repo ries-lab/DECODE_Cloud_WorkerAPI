@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
-from workerfacing_api.dependencies import get_queue
+from workerfacing_api.dependencies import queue_dep
 from workerfacing_api.main import workerfacing_app
 
 client = TestClient(workerfacing_app)
@@ -20,7 +20,7 @@ def queue_enqueue(
     queue.enqueue = MagicMock()
     monkeypatch_module.setitem(
         workerfacing_app.dependency_overrides,  # type: ignore
-        get_queue,
+        queue_dep,
         lambda: queue,
     )
     return queue.enqueue
@@ -43,7 +43,6 @@ def queue_job() -> dict[str, Any]:
 def test_post_job(
     queue_enqueue: MagicMock,
     queue_job: dict[str, Any],
-    patch_update_job: MagicMock,
     internal_api_key_secret: str,
 ) -> None:
     resp = client.post(

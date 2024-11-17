@@ -27,7 +27,7 @@ workerfacing_app.include_router(
 )
 
 
-queue = dependencies.get_queue()
+queue = dependencies.queue_dep()
 
 
 @workerfacing_app.on_event("startup")  # type: ignore
