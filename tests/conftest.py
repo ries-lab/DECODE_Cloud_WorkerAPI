@@ -1,62 +1,15 @@
-import datetime
-import os
-import shutil
-from io import BytesIO
-from typing import Any, Generator, TypedDict, cast
+import secrets
+import time
+from typing import Any, Generator
 from unittest.mock import MagicMock
 
 import boto3
-import dotenv
+import botocore.exceptions
 import pytest
-from moto import mock_aws
+import requests
+from sqlalchemy import Engine, MetaData, create_engine
 
-dotenv.load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
-
-from workerfacing_api import settings
-from workerfacing_api.core.filesystem import FileSystem, LocalFilesystem, S3Filesystem
-from workerfacing_api.core.queue import JobQueue
 from workerfacing_api.crud import job_tracking
-from workerfacing_api.dependencies import (
-    APIKeyDependency,
-    GroupClaims,
-    authorizer,
-    current_user_dep,
-    filesystem_dep,
-)
-from workerfacing_api.main import workerfacing_app
-from workerfacing_api.schemas.queue_jobs import (
-    AppSpecs,
-    EnvironmentTypes,
-    HandlerSpecs,
-    HardwareSpecs,
-    JobSpecs,
-    MetaSpecs,
-    PathsUploadSpecs,
-    SubmittedJob,
-)
-
-test_username = "test_user"
-example_app = AppSpecs(cmd=["cmd"], env={"env": "var"})
-example_paths_upload = PathsUploadSpecs(
-    output=f"{test_username}/out",
-    log=f"{test_username}/log",
-    artifact=f"{test_username}/artifact",
-)
-
-
-@pytest.fixture(scope="module")
-def base_dir() -> str:
-    return "test_user_dir"
-
-
-@pytest.fixture(scope="module")
-def data_file1_contents() -> str:
-    return "data file1 contents"
-
-
-@pytest.fixture(scope="module")
-def internal_api_key_secret() -> str:
-    return "test_internal_api_key"
 
 
 @pytest.fixture(scope="module")
@@ -65,263 +18,156 @@ def monkeypatch_module() -> Generator[pytest.MonkeyPatch, Any, None]:
         yield mp
 
 
-@pytest.fixture(autouse=True, scope="function")
+@pytest.fixture(autouse=True, scope="module")
 def patch_update_job(monkeypatch_module: pytest.MonkeyPatch) -> MagicMock:
     mock_update_job = MagicMock()
     monkeypatch_module.setattr(job_tracking, "update_job", mock_update_job)
     return mock_update_job
 
 
-@pytest.fixture(
-    scope="module",
-    params=["local", "aws_mock", pytest.param("aws", marks=pytest.mark.aws)],
-)
-def env(request: pytest.FixtureRequest) -> str:
-    assert isinstance(request.param, str)
-    return request.param
+class RDSTestingInstance:
+    def __init__(self, db_name: str):
+        self.db_name = db_name
+        self.rds_client = boto3.client("rds", "eu-central-1")
+        self.ec2_client = boto3.client("ec2", "eu-central-1")
+        self.add_ingress_rule()
+        self.db_url = self.create_db_url()
+        self.delete_db_tables()
 
+    @property
+    def engine(self) -> Engine:
+        for _ in range(5):
+            try:
+                engine = create_engine(self.db_url)
+                engine.connect()
+                return engine
+            except Exception:
+                time.sleep(60)
+        raise RuntimeError("Could not create engine.")
 
-@pytest.fixture(scope="module")
-def base_filesystem(
-    env: str, base_dir: str, monkeypatch_module: pytest.MonkeyPatch
-) -> Generator[FileSystem, Any, None]:
-    bucket_name = "decode-cloud-tests-bucket"
-    region_name = "eu-central-1"
+    @property
+    def vpc_sg_rule_params(self) -> dict[str, Any]:
+        return {
+            "GroupName": "default",
+            "IpPermissions": [
+                {
+                    "FromPort": 5432,
+                    "ToPort": 5432,
+                    "IpProtocol": "tcp",
+                    "IpRanges": [
+                        {
+                            "CidrIp": f"{requests.get('http://checkip.amazonaws.com').text.strip()}/24"
+                        }
+                    ],
+                }
+            ],
+        }
 
-    monkeypatch_module.setattr(
-        settings,
-        "user_data_root_path",
-        base_dir,
-    )
-    monkeypatch_module.setattr(
-        settings,
-        "s3_bucket",
-        bucket_name,
-    )
-    monkeypatch_module.setattr(
-        settings,
-        "filesystem",
-        "local" if env == "local" else "s3",
-    )
-
-    if env == "local":
-        yield LocalFilesystem(base_dir, base_dir)
+    def add_ingress_rule(self) -> None:
         try:
-            shutil.rmtree(base_dir)
-        except FileNotFoundError:
-            pass
+            self.ec2_client.authorize_security_group_ingress(**self.vpc_sg_rule_params)
+        except botocore.exceptions.ClientError as e:
+            if e.response["Error"]["Code"] == "InvalidPermission.Duplicate":
+                pass
+            else:
+                raise e
 
-    elif env == "aws_mock":
-        with mock_aws():
-            s3_client = boto3.client("s3", region_name=region_name)
-            s3_client.create_bucket(
-                Bucket=bucket_name,
-                CreateBucketConfiguration={"LocationConstraint": region_name},  # type: ignore
+    def delete_db_tables(self) -> None:
+        metadata = MetaData()
+        engine = self.engine
+        metadata.reflect(engine)
+        metadata.drop_all(engine)
+
+    def get_db_password(self) -> str:
+        secret_name = "decode-cloud-tests-db-pwd"
+        sm_client = boto3.client("secretsmanager", "eu-central-1")
+        try:
+            return sm_client.get_secret_value(SecretId=secret_name)["SecretString"]
+        except botocore.exceptions.ClientError as e:
+            if e.response["Error"]["Code"] == "ResourceNotFoundException":
+                secret = secrets.token_urlsafe(32)
+                boto3.client("secretsmanager", "eu-central-1").create_secret(
+                    Name=secret_name, SecretString=secret
+                )
+                return secret
+            else:
+                raise e
+
+    def create_db_url(self) -> str:
+        user = "postgres"
+        password = self.get_db_password()
+        try:
+            response = self.rds_client.describe_db_instances(
+                DBInstanceIdentifier=self.db_name
             )
-            yield S3Filesystem(s3_client, bucket_name)
+        except self.rds_client.exceptions.DBInstanceNotFoundFault:
+            while True:
+                try:
+                    self.rds_client.create_db_instance(
+                        DBName=self.db_name,
+                        DBInstanceIdentifier=self.db_name,
+                        AllocatedStorage=20,
+                        DBInstanceClass="db.t3.micro",
+                        Engine="postgres",
+                        MasterUsername=user,
+                        MasterUserPassword=password,
+                        DeletionProtection=False,
+                        BackupRetentionPeriod=0,
+                    )
+                    break
+                except self.rds_client.exceptions.DBInstanceAlreadyExistsFault:
+                    pass
+            while True:
+                response = self.rds_client.describe_db_instances(
+                    DBInstanceIdentifier=self.db_name
+                )
+                assert len(response["DBInstances"]) == 1
+                if response["DBInstances"][0]["DBInstanceStatus"] == "available":
+                    break
+                else:
+                    time.sleep(5)
+        address = response["DBInstances"][0]["Endpoint"]["Address"]
+        return f"postgresql://{user}:{password}@{address}:5432/{self.db_name}"
 
-    elif env == "aws":
-        s3_client = boto3.client("s3", region_name=region_name)
-        s3_client.create_bucket(
-            Bucket=bucket_name,
-            CreateBucketConfiguration={"LocationConstraint": region_name},  # type: ignore
+    def cleanup(self) -> None:
+        self.delete_db_tables()
+        self.ec2_client.revoke_security_group_ingress(**self.vpc_sg_rule_params)
+
+
+class S3TestingBucket:
+    def __init__(self, bucket_name: str):
+        self.bucket_name = bucket_name
+        self.region_name = "eu-central-1"
+        self.s3_client = boto3.client(
+            "s3",
+            region_name=self.region_name,
+            # required for pre-signing URLs to work
+            endpoint_url=f"https://s3.{self.region_name}.amazonaws.com",
         )
-        yield S3Filesystem(s3_client, bucket_name)
-        s3 = boto3.resource("s3", region_name=region_name)
-        s3_bucket = s3.Bucket(bucket_name)
-        bucket_versioning = s3.BucketVersioning(bucket_name)
+        self.initialize_bucket()
+
+    def cleanup(self) -> bool:
+        """Returns True if bucket exists and all objects are deleted."""
+        try:
+            self.s3_client.head_bucket(Bucket=self.bucket_name)
+        except self.s3_client.exceptions.NoSuchBucket:
+            return False
+        except self.s3_client.exceptions.ClientError:
+            return False
+        s3 = boto3.resource("s3", region_name=self.region_name)
+        s3_bucket = s3.Bucket(self.bucket_name)
+        bucket_versioning = s3.BucketVersioning(self.bucket_name)
         if bucket_versioning.status == "Enabled":
             s3_bucket.object_versions.delete()
         else:
             s3_bucket.objects.all().delete()
-        s3_bucket.delete()
+        return True
 
-    else:
-        raise NotImplementedError
-
-
-@pytest.fixture(scope="module", autouse=True)
-def override_filesystem_dep(
-    base_filesystem: FileSystem, monkeypatch_module: pytest.MonkeyPatch
-) -> None:
-    monkeypatch_module.setitem(
-        workerfacing_app.dependency_overrides,  # type: ignore
-        filesystem_dep,
-        lambda: base_filesystem,
-    )
-
-
-@pytest.fixture(autouse=True, scope="module")
-def override_auth(monkeypatch_module: pytest.MonkeyPatch) -> None:
-    monkeypatch_module.setitem(
-        workerfacing_app.dependency_overrides,  # type: ignore
-        current_user_dep,
-        lambda: GroupClaims(
-            **{
-                "cognito:username": test_username,
-                "cognito:email": "test@example.com",
-                "cognito:groups": ["workers"],
-            }
-        ),
-    )
-
-
-@pytest.fixture(scope="module", autouse=True)
-def override_internal_api_key_secret(
-    monkeypatch_module: pytest.MonkeyPatch, internal_api_key_secret: str
-) -> str:
-    monkeypatch_module.setitem(
-        workerfacing_app.dependency_overrides,  # type: ignore
-        authorizer,
-        APIKeyDependency(internal_api_key_secret),
-    )
-    return internal_api_key_secret
-
-
-@pytest.fixture
-def require_auth(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delitem(
-        workerfacing_app.dependency_overrides,  # type: ignore
-        current_user_dep,
-    )
-
-
-@pytest.fixture
-def data_file1_name(
-    env: str, base_dir: str, base_filesystem: FileSystem
-) -> Generator[str, Any, None]:
-    if env == "local":
-        yield f"{base_dir}/data/test/data_file1.txt"
-    else:
-        base_filesystem = cast(S3Filesystem, base_filesystem)
-        yield f"s3://{base_filesystem.bucket}/{base_dir}/data/test/data_file1.txt"
-
-
-@pytest.fixture
-def data_file1(
-    env: str,
-    base_filesystem: FileSystem,
-    data_file1_name: str,
-    data_file1_contents: str,
-) -> None:
-    file_name = data_file1_name
-    if env == "local":
-        os.makedirs(os.path.dirname(file_name), exist_ok=True)
-        with open(file_name, "w") as f:
-            f.write(data_file1_contents)
-    else:  # s3
-        base_filesystem = cast(S3Filesystem, base_filesystem)
-        base_filesystem.s3_client.put_object(
-            Bucket=base_filesystem.bucket,
-            Key=file_name,
-            Body=BytesIO(data_file1_contents.encode("utf-8")),
-        )
-
-
-@pytest.fixture(scope="function")
-def jobs(
-    env: str, base_filesystem: str
-) -> tuple[SubmittedJob, SubmittedJob, SubmittedJob, SubmittedJob]:
-    time_now = datetime.datetime.now(datetime.timezone.utc).isoformat()
-
-    paths_upload = example_paths_upload.model_copy()
-    for k in paths_upload.model_fields:
-        if env == "local":
-            path = f"{cast(LocalFilesystem, base_filesystem).base_post_path}/{getattr(paths_upload, k)}"
-        else:
-            path = f"s3://{cast(S3Filesystem, base_filesystem).bucket}/{getattr(paths_upload, k)}"
-        setattr(paths_upload, k, path)
-
-    JobBase = TypedDict(
-        "JobBase", {"app": AppSpecs, "handler": HandlerSpecs, "hardware": HardwareSpecs}
-    )
-    common_job_base: JobBase = {
-        "app": example_app,
-        "handler": HandlerSpecs(image_url="u", files_up={"output": "out"}),
-        "hardware": HardwareSpecs(),
-    }
-    job0 = SubmittedJob(
-        job=JobSpecs(
-            **common_job_base, meta=MetaSpecs(job_id=0, date_created=time_now)
-        ),
-        environment=EnvironmentTypes.local,
-        paths_upload=paths_upload,
-    )
-    job1 = SubmittedJob(
-        job=JobSpecs(
-            **common_job_base, meta=MetaSpecs(job_id=1, date_created=time_now)
-        ),
-        environment=EnvironmentTypes.local,
-        paths_upload=paths_upload,
-    )
-    job2 = SubmittedJob(
-        job=JobSpecs(
-            **common_job_base, meta=MetaSpecs(job_id=2, date_created=time_now)
-        ),
-        environment=EnvironmentTypes.any,
-        paths_upload=paths_upload,
-    )
-    job3 = SubmittedJob(
-        job=JobSpecs(
-            **common_job_base, meta=MetaSpecs(job_id=3, date_created=time_now)
-        ),
-        environment=EnvironmentTypes.cloud,
-        paths_upload=paths_upload,
-    )
-    return job0, job1, job2, job3
-
-
-@pytest.fixture(scope="function")
-def full_jobs(
-    jobs: tuple[SubmittedJob, SubmittedJob, SubmittedJob, SubmittedJob],
-) -> tuple[SubmittedJob, SubmittedJob, SubmittedJob, SubmittedJob]:
-    job0, job1, job2, job3 = [job.model_copy() for job in jobs]
-
-    job0.job.hardware = HardwareSpecs(
-        gpu_model="gpu_model",
-        gpu_archi="gpu_archi",
-    )
-    job0.priority = 5
-
-    job1.job.hardware = HardwareSpecs(
-        cpu_cores=2,
-        memory=0,
-        gpu_model=None,
-        gpu_archi=None,
-        gpu_mem=None,
-    )
-    job1.priority = 10
-
-    job2.group = "group"
-    job2.priority = 1
-    job2.environment = EnvironmentTypes.local
-
-    job3.priority = 1
-    job3.environment = EnvironmentTypes.local
-
-    return job0, job1, job2, job3
-
-
-@pytest.fixture
-def populated_queue(
-    queue: JobQueue, jobs: tuple[SubmittedJob, SubmittedJob, SubmittedJob, SubmittedJob]
-) -> JobQueue:
-    job0, job1, job2, job3 = jobs
-    queue.enqueue(job0)
-    queue.enqueue(job1)
-    queue.enqueue(job2)
-    queue.enqueue(job3)
-    return queue
-
-
-@pytest.fixture
-def populated_full_queue(
-    queue: JobQueue,
-    full_jobs: tuple[SubmittedJob, SubmittedJob, SubmittedJob, SubmittedJob],
-) -> JobQueue:
-    job1, job2, job3, job4 = full_jobs
-    queue.enqueue(job1)
-    queue.enqueue(job2)
-    queue.enqueue(job3)
-    queue.enqueue(job4)
-    return queue
+    def initialize_bucket(self) -> None:
+        exists = self.cleanup()
+        if not exists:
+            self.s3_client.create_bucket(
+                Bucket=self.bucket_name,
+                CreateBucketConfiguration={"LocationConstraint": self.region_name},  # type: ignore
+            )
+            self.s3_client.get_waiter("bucket_exists").wait(Bucket=self.bucket_name)

@@ -250,7 +250,10 @@ class SQSJobQueue(JobQueue):
 
     def delete(self) -> None:
         for queue_url in self.queue_urls.values():
-            self.sqs_client.delete_queue(QueueUrl=queue_url)
+            try:
+                self.sqs_client.delete_queue(QueueUrl=queue_url)
+            except self.sqs_client.exceptions.QueueDoesNotExist:
+                pass
 
     def enqueue(self, job: SubmittedJob) -> None:
         try:
@@ -338,7 +341,7 @@ class RDSJobQueue(JobQueue):
 
     def _get_engine(self, db_url: str, max_retries: int, retry_wait: int) -> Engine:
         retries = 0
-        while retries < max_retries:
+        while True:
             try:
                 engine = create_engine(
                     db_url,
@@ -351,10 +354,11 @@ class RDSJobQueue(JobQueue):
                 # Attempt to create a connection or perform any necessary operations
                 engine.connect()
                 return engine  # Connection successful
-            except Exception:
+            except Exception as e:
+                if retries >= max_retries:
+                    raise RuntimeError(f"Could not create engine: {str(e)}")
                 retries += 1
                 time.sleep(retry_wait)
-        raise RuntimeError("Could not create engine.")
 
     def create(self, err_on_exists: bool = True) -> None:
         inspector = inspect(self.engine)
@@ -451,7 +455,11 @@ class RDSJobQueue(JobQueue):
                 if job.status != JobStates.queued.value:
                     return False
                 job.workers = ";".join(job.workers.split(";") + [hostname])  # type: ignore
-                self._update_job_status(session, job, status=JobStates.pulled)
+                try:
+                    self._update_job_status(session, job, status=JobStates.pulled)
+                except ValueError:
+                    # job probably deleted by user
+                    return False
             return True
 
     def get_job(

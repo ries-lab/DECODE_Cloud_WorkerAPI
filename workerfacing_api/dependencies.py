@@ -17,7 +17,7 @@ queue_ = queue.RDSJobQueue(queue_db_url)
 queue_.create(err_on_exists=False)
 
 
-def get_queue() -> queue.RDSJobQueue:
+def queue_dep() -> queue.RDSJobQueue:
     return queue_
 
 
