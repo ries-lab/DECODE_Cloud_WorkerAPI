@@ -132,3 +132,42 @@ class RDSTestingInstance:
     def cleanup(self) -> None:
         self.delete_db_tables()
         self.ec2_client.revoke_security_group_ingress(**self.vpc_sg_rule_params)
+
+
+class S3TestingBucket:
+    def __init__(self, bucket_name: str):
+        self.bucket_name = bucket_name
+        self.region_name = "eu-central-1"
+        self.s3_client = boto3.client(
+            "s3",
+            region_name=self.region_name,
+            # required for pre-signing URLs to work
+            endpoint_url=f"https://s3.{self.region_name}.amazonaws.com",
+        )
+        self.initialize_bucket()
+
+    def cleanup(self) -> bool:
+        """Returns True if bucket exists and all objects are deleted."""
+        try:
+            self.s3_client.head_bucket(Bucket=self.bucket_name)
+        except self.s3_client.exceptions.NoSuchBucket:
+            return False
+        except self.s3_client.exceptions.ClientError:
+            return False
+        s3 = boto3.resource("s3", region_name=self.region_name)
+        s3_bucket = s3.Bucket(self.bucket_name)
+        bucket_versioning = s3.BucketVersioning(self.bucket_name)
+        if bucket_versioning.status == "Enabled":
+            s3_bucket.object_versions.delete()
+        else:
+            s3_bucket.objects.all().delete()
+        return True
+
+    def initialize_bucket(self) -> None:
+        exists = self.cleanup()
+        if not exists:
+            self.s3_client.create_bucket(
+                Bucket=self.bucket_name,
+                CreateBucketConfiguration={"LocationConstraint": self.region_name},  # type: ignore
+            )
+            self.s3_client.get_waiter("bucket_exists").wait(Bucket=self.bucket_name)

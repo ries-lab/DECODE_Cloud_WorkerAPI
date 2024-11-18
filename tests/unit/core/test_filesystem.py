@@ -7,7 +7,6 @@ from io import BytesIO
 from types import SimpleNamespace
 from typing import Any, Generator, cast
 
-import boto3
 import pytest
 import requests
 from fastapi import UploadFile
@@ -15,6 +14,7 @@ from moto import mock_aws
 from starlette.requests import Request
 from starlette.responses import FileResponse
 
+from tests.conftest import S3TestingBucket
 from workerfacing_api.core.filesystem import (
     FileSystem,
     LocalFilesystem,
@@ -223,7 +223,6 @@ class TestLocalFilesystem(_TestFilesystem):
 
 class TestS3Filesystem(_TestFilesystem):
     bucket_name = "decode-cloud-filesystem-tests"
-    region_name = "eu-central-1"
 
     @pytest.fixture(
         scope="class", params=[True, pytest.param(False, marks=pytest.mark.aws)]
@@ -231,38 +230,13 @@ class TestS3Filesystem(_TestFilesystem):
     def mock_aws_(self, request: pytest.FixtureRequest) -> bool:
         return cast(bool, request.param)
 
-    def _delete(self) -> None:
-        s3 = boto3.resource("s3", region_name=self.region_name)
-        s3_bucket = s3.Bucket(self.bucket_name)
-        if not s3_bucket.creation_date:
-            return
-        bucket_versioning = s3.BucketVersioning(self.bucket_name)
-        if bucket_versioning.status == "Enabled":
-            s3_bucket.object_versions.delete()
-        else:
-            s3_bucket.objects.all().delete()
-        s3_bucket.delete()
-        s3.meta.client.get_waiter("bucket_not_exists").wait(Bucket=self.bucket_name)
-
     @pytest.fixture(scope="class")
     def base_filesystem(self, mock_aws_: bool) -> Generator[S3Filesystem, Any, None]:
-        if not mock_aws_:
-            self._delete()
         context_manager = mock_aws if mock_aws_ else nullcontext
         with context_manager():
-            s3_client = boto3.client(
-                "s3",
-                region_name=self.region_name,
-                # somehow required for presigned urls to work
-                endpoint_url=f"https://s3.{self.region_name}.amazonaws.com",
-            )
-            s3_client.create_bucket(
-                Bucket=self.bucket_name,
-                CreateBucketConfiguration={"LocationConstraint": self.region_name},  # type: ignore
-            )
-            yield S3Filesystem(s3_client, self.bucket_name)
-        if not mock_aws_:
-            self._delete()
+            testing_bucket = S3TestingBucket(self.bucket_name)
+            yield S3Filesystem(testing_bucket.s3_client, testing_bucket.bucket_name)
+            testing_bucket.cleanup()
 
     @pytest.fixture(scope="class", autouse=True)
     def data_file1(

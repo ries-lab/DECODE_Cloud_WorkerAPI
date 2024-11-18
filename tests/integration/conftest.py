@@ -1,10 +1,9 @@
 import shutil
 from typing import Any, Generator
 
-import boto3
 import pytest
 
-from tests.conftest import RDSTestingInstance
+from tests.conftest import RDSTestingInstance, S3TestingBucket
 from workerfacing_api import settings
 from workerfacing_api.core.filesystem import FileSystem, LocalFilesystem, S3Filesystem
 from workerfacing_api.core.queue import RDSJobQueue
@@ -48,7 +47,6 @@ def base_filesystem(
     env: str, base_dir: str, monkeypatch_module: pytest.MonkeyPatch
 ) -> Generator[FileSystem, Any, None]:
     bucket_name = "decode-cloud-integration-tests"
-    region_name = "eu-central-1"
 
     monkeypatch_module.setattr(
         settings,
@@ -72,29 +70,9 @@ def base_filesystem(
         shutil.rmtree(base_dir, ignore_errors=True)
 
     elif env == "aws":
-        s3_client = boto3.client(
-            "s3",
-            region_name=region_name,
-            # required for pre-signing URLs to work
-            endpoint_url=f"https://s3.{region_name}.amazonaws.com",
-        )
-        try:
-            s3_client.delete_bucket(Bucket=bucket_name)
-        except s3_client.exceptions.NoSuchBucket:
-            pass
-        s3_client.create_bucket(
-            Bucket=bucket_name,
-            CreateBucketConfiguration={"LocationConstraint": region_name},  # type: ignore
-        )
-        yield S3Filesystem(s3_client, bucket_name)
-        s3 = boto3.resource("s3", region_name=region_name)
-        s3_bucket = s3.Bucket(bucket_name)
-        bucket_versioning = s3.BucketVersioning(bucket_name)
-        if bucket_versioning.status == "Enabled":
-            s3_bucket.object_versions.delete()
-        else:
-            s3_bucket.objects.all().delete()
-        s3_bucket.delete()
+        testing_bucket = S3TestingBucket(bucket_name)
+        yield S3Filesystem(testing_bucket.s3_client, testing_bucket.bucket_name)
+        testing_bucket.cleanup()
 
     else:
         raise NotImplementedError
