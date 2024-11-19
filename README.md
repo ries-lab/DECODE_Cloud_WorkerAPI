@@ -58,7 +58,7 @@ Copy the `.env.example` file to a `.env` file at the root of the directory and d
 `poetry run serve`
 
 #### View the API documentation
-You can find it at `<API_URL>/docs` (if running locally, `<API_URL>=localhost:81`).
+You can find it at `<API_URL>/docs` (if running locally, `<API_URL>=localhost:8001`).
 
 #### Docker
 Alternatively, you can build a Docker image.
