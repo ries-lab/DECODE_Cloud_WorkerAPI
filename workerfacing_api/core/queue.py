@@ -441,7 +441,7 @@ class RDSJobQueue(JobQueue):
             if job is None:
                 job = filter_sort_query(query)
             if job:
-                return job.id, JobSpecs(**job.job), json.dumps((job.id, hostname))  # type: ignore
+                return job.id, JobSpecs(**job.job), json.dumps((job.id, hostname))
         return None
 
     def pop(self, environment: EnvironmentTypes, receipt_handle: str) -> bool:
@@ -454,7 +454,7 @@ class RDSJobQueue(JobQueue):
                     return False
                 if job.status != JobStates.queued.value:
                     return False
-                job.workers = ";".join(job.workers.split(";") + [hostname])  # type: ignore
+                job.workers = ";".join(job.workers.split(";") + [hostname])
                 try:
                     self._update_job_status(session, job, status=JobStates.pulled)
                 except ValueError:
@@ -497,8 +497,8 @@ class RDSJobQueue(JobQueue):
         runtime_details: str | None = None,
     ) -> None:
         """Internal job status update handler."""
-        job.status = status.value  # type: ignore
-        job.last_updated = datetime.datetime.now(datetime.timezone.utc)  # type: ignore
+        job.status = status.value
+        job.last_updated = datetime.datetime.now(datetime.timezone.utc)
         session.add(job)
         session.commit()
         try:
@@ -543,10 +543,10 @@ class RDSJobQueue(JobQueue):
             jobs_retry = jobs_timeout.filter(QueuedJob.num_retries < max_retries)
             for job in jobs_retry:
                 # TODO: increase priority?
-                job.num_retries += 1  # type: ignore
+                job.num_retries += 1
                 session.add(job)
                 self.update_job_status(
-                    job.id,  # type: ignore
+                    job.id,
                     JobStates.queued,
                     f"timeout {job.num_retries} (workers tried: {job.workers})",
                 )
@@ -554,7 +554,7 @@ class RDSJobQueue(JobQueue):
             jobs_failed = jobs_timeout.filter(QueuedJob.num_retries >= max_retries)
             for job in jobs_failed:
                 self.update_job_status(
-                    job.id,  # type: ignore
+                    job.id,
                     JobStates.error,
                     "max retries reached",
                 )
