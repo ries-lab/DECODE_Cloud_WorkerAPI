@@ -7,6 +7,7 @@ import boto3
 import botocore.exceptions
 import pytest
 import requests
+from mypy_boto3_s3.literals import BucketLocationConstraintType
 from sqlalchemy import Engine, MetaData, create_engine
 
 from workerfacing_api.crud import job_tracking
@@ -137,7 +138,7 @@ class RDSTestingInstance:
 class S3TestingBucket:
     def __init__(self, bucket_name: str):
         self.bucket_name = bucket_name
-        self.region_name = "eu-central-1"
+        self.region_name: BucketLocationConstraintType = "eu-central-1"
         self.s3_client = boto3.client(
             "s3",
             region_name=self.region_name,
@@ -168,6 +169,6 @@ class S3TestingBucket:
         if not exists:
             self.s3_client.create_bucket(
                 Bucket=self.bucket_name,
-                CreateBucketConfiguration={"LocationConstraint": self.region_name},  # type: ignore
+                CreateBucketConfiguration={"LocationConstraint": self.region_name},
             )
             self.s3_client.get_waiter("bucket_exists").wait(Bucket=self.bucket_name)
