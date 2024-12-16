@@ -50,6 +50,7 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry.scripts]
 docker-build = "scripts.docker:build"
 docker-serve = "scripts.docker:serve"
+docker-stop = "scripts.docker:stop"
 docker-cleanup = "scripts.docker:cleanup"
 serve = "scripts.serve:main"
 

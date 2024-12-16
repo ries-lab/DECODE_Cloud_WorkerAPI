@@ -65,6 +65,7 @@ def serve() -> None:
                 "mode": "ro",
             }
         },
+        detach=True,
         auto_remove=True,
     )
 
@@ -75,7 +76,7 @@ def stop() -> None:
     """
     client = _get_client()
     for container in client.containers.list(ignore_removed=True):
-        if container.attrs["image"].startswith(_get_package_name() + ":"):
+        if container.attrs["Config"]["Image"].startswith(_get_package_name() + ":"):
             container.remove(force=True)
 
 
