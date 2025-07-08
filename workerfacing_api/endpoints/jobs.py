@@ -112,8 +112,10 @@ async def put_job_status(
     try:
         queue.update_job_status(job_id, status, runtime_details, hostname=hostname)
     except ValueError:
-        # acts as a "cancel job" signal to worker
-        raise HTTPException(status_code=httpstatus.HTTP_404_NOT_FOUND)
+        # Job was deleted by user in user-facing API
+        # Return success (204) instead of 404 to allow worker to continue processing
+        # The job is already cleaned up from the worker-facing API database
+        return
 
 
 class UploadType(enum.Enum):

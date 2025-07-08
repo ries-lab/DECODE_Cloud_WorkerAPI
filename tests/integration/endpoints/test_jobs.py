@@ -281,7 +281,9 @@ class TestJobs(_TestEndpoint):
 
         monkeypatch.setattr(job_tracking, "update_job", mock_update_job)
         res = client.put(f"{self.endpoint}/1/status", params={"status": "running"})
-        assert res.status_code == 404
+        # Fixed: Return 204 instead of 404 when job is deleted by user
+        # This allows worker to continue processing without getting an error
+        assert res.status_code == 204
 
     def test_job_files_post(
         self,
