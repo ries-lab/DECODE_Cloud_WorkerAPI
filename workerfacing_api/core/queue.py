@@ -18,6 +18,7 @@ from sqlalchemy.orm import Query, Session
 
 from workerfacing_api import settings
 from workerfacing_api.crud import job_tracking
+from workerfacing_api.exceptions import JobDeletedException
 from workerfacing_api.schemas.queue_jobs import (
     EnvironmentTypes,
     JobFilter,
@@ -457,7 +458,7 @@ class RDSJobQueue(JobQueue):
                 job.workers = ";".join(job.workers.split(";") + [hostname])
                 try:
                     self._update_job_status(session, job, status=JobStates.pulled)
-                except ValueError:
+                except JobDeletedException:
                     # job probably deleted by user
                     return False
             return True
@@ -505,11 +506,11 @@ class RDSJobQueue(JobQueue):
             job_id = job.job["meta"]["job_id"]
             assert isinstance(job_id, int)
             job_tracking.update_job(job_id, status, runtime_details)
-        except ValueError as e:
+        except JobDeletedException as e:
             # job probably deleted by user
             session.delete(job)
             session.commit()
-            raise ValueError(f"Could not update job, probably deleted by user: {e}")
+            raise JobDeletedException(e.job_id, f"Could not update job, probably deleted by user: {e}")
 
     def update_job_status(
         self,
@@ -545,19 +546,27 @@ class RDSJobQueue(JobQueue):
                 # TODO: increase priority?
                 job.num_retries += 1
                 session.add(job)
-                self.update_job_status(
-                    job.id,
-                    JobStates.queued,
-                    f"timeout {job.num_retries} (workers tried: {job.workers})",
-                )
-                n_retry += 1
+                try:
+                    self.update_job_status(
+                        job.id,
+                        JobStates.queued,
+                        f"timeout {job.num_retries} (workers tried: {job.workers})",
+                    )
+                    n_retry += 1
+                except JobDeletedException:
+                    # job probably deleted by user, skip updating status
+                    pass
             jobs_failed = jobs_timeout.filter(QueuedJob.num_retries >= max_retries)
             for job in jobs_failed:
-                self.update_job_status(
-                    job.id,
-                    JobStates.error,
-                    "max retries reached",
-                )
-                n_failed += 1
+                try:
+                    self.update_job_status(
+                        job.id,
+                        JobStates.error,
+                        "max retries reached",
+                    )
+                    n_failed += 1
+                except JobDeletedException:
+                    # job probably deleted by user, skip updating status
+                    pass
             session.commit()
         return n_retry, n_failed

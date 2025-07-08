@@ -13,6 +13,7 @@ from tests.integration.endpoints.conftest import EndpointParams, _TestEndpoint
 from workerfacing_api.core.filesystem import FileSystem, LocalFilesystem, S3Filesystem
 from workerfacing_api.core.queue import RDSJobQueue
 from workerfacing_api.crud import job_tracking
+from workerfacing_api.exceptions import JobDeletedException
 from workerfacing_api.schemas.queue_jobs import (
     AppSpecs,
     EnvironmentTypes,
@@ -277,7 +278,7 @@ class TestJobs(_TestEndpoint):
         client.get(self.endpoint, params={"memory": 1})
 
         def mock_update_job(*args: Any, **kwargs: Any) -> None:
-            raise ValueError("Job not found")
+            raise JobDeletedException(1, "Job not found")
 
         monkeypatch.setattr(job_tracking, "update_job", mock_update_job)
         res = client.put(f"{self.endpoint}/1/status", params={"status": "running"})

@@ -17,6 +17,7 @@ from fastapi import (
 from workerfacing_api.core.filesystem import FileSystem
 from workerfacing_api.core.queue import RDSJobQueue
 from workerfacing_api.dependencies import filesystem_dep, queue_dep
+from workerfacing_api.exceptions import JobDeletedException
 from workerfacing_api.schemas.files import FileHTTPRequest
 from workerfacing_api.schemas.queue_jobs import (
     EnvironmentTypes,
@@ -111,7 +112,7 @@ async def put_job_status(
     hostname = request.state.current_user.username
     try:
         queue.update_job_status(job_id, status, runtime_details, hostname=hostname)
-    except ValueError:
+    except JobDeletedException:
         # acts as a "cancel job" signal to worker
         raise HTTPException(status_code=httpstatus.HTTP_404_NOT_FOUND)
 
