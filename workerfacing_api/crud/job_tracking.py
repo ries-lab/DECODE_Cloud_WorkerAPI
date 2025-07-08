@@ -20,7 +20,5 @@ def update_job(
         headers={"x-api-key": settings.internal_api_key_secret},
     )
     if resp.status_code == 404:
-        raise JobDeletedException(
-            job_id, "it was probably deleted by the user"
-        )
+        raise JobDeletedException("it was probably deleted by the user")
     resp.raise_for_status()

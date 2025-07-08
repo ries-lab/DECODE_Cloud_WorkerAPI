@@ -278,7 +278,7 @@ class TestJobs(_TestEndpoint):
         client.get(self.endpoint, params={"memory": 1})
 
         def mock_update_job(*args: Any, **kwargs: Any) -> None:
-            raise JobDeletedException(1, "Job not found")
+            raise JobDeletedException("Job not found")
 
         monkeypatch.setattr(job_tracking, "update_job", mock_update_job)
         res = client.put(f"{self.endpoint}/1/status", params={"status": "running"})
