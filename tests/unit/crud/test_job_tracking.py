@@ -1,4 +1,4 @@
-"""Tests for JobDeletedException exception handling."""
+"""Tests for job_tracking module."""
 
 import pytest
 from unittest.mock import patch, MagicMock
