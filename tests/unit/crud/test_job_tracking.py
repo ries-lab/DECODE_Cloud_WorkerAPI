@@ -21,4 +21,4 @@ def test_update_job_raises_job_deleted_exception(mock_put):
     with pytest.raises(JobDeletedException) as exc_info:
         update_job(job_id, JobStates.running)
     
-    assert "it was probably deleted by the user" in str(exc_info.value)
+    assert f"Job {job_id} not found; it was probably deleted by the user." in str(exc_info.value)

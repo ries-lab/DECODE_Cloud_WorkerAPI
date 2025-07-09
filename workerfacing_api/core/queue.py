@@ -510,7 +510,7 @@ class RDSJobQueue(JobQueue):
             # job probably deleted by user
             session.delete(job)
             session.commit()
-            raise JobDeletedException(f"Could not update job, probably deleted by user: {e}")
+            raise e from e
 
     def update_job_status(
         self,
