@@ -1,10 +1,11 @@
 """Tests for job_tracking module."""
 
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-from workerfacing_api.exceptions import JobDeletedException
+import pytest
+
 from workerfacing_api.crud.job_tracking import update_job
+from workerfacing_api.exceptions import JobDeletedException
 from workerfacing_api.schemas.rds_models import JobStates
 
 
