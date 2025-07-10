@@ -1,0 +1,136 @@
+name: Publish version to GitHub and ECR
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        type: choice
+        description: 'Publish type (dev for test image, prod for release from pyproject.toml)'
+        required: true
+        options:
+          - dev
+          - prod
+        default: 'dev'
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-push:
+    name: Build and push Docker image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Set version type
+        id: set-version-type
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            VERSION_TYPE="prod"
+          else
+            VERSION_TYPE="${{ github.event.inputs.version }}"
+          fi
+          echo "VERSION_TYPE=$VERSION_TYPE" >> $GITHUB_OUTPUT
+
+      - name: Validate branch for dev
+        if: ${{ steps.set-version-type.outputs.VERSION_TYPE == 'prod' && github.ref != 'refs/heads/main' }}
+        run: |
+          echo "Error: Only 'dev' builds are allowed on non-main branches."
+          exit 1
+
+      - name: Set version
+        id: set-version
+        run: |
+          if [ "${{ steps.set-version-type.outputs.VERSION_TYPE }}" = "prod" ]; then
+            pip install poetry
+            VERSION=$(poetry version -s)
+          else
+            VERSION="dev-${GITHUB_SHA::7}"
+          fi
+          echo "VERSION=$VERSION"
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Check if release exists (prod)
+        if: ${{ steps.set-version-type.outputs.VERSION_TYPE == 'prod' }}
+        id: check-release
+        env:
+          VERSION: ${{ steps.set-version.outputs.VERSION }}
+        run: |
+          git fetch --tags
+          if [ -n "$(git tag -l "$VERSION")" ]; then
+            echo "## ⚠️ Tag $VERSION already exists in git. Skipping publish." >> $GITHUB_STEP_SUMMARY
+            echo "skip_publish=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip_publish=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Get Python version
+        if: steps.check-release.outputs.skip_publish != 'true'
+        id: get-python-version
+        run: |
+          pip install toml
+          PYTHON_VERSION=$(python -c 'import scripts.vars; scripts.vars.get_python_version()')
+          echo "Python version: $PYTHON_VERSION"
+          echo "PYTHON_VERSION=$PYTHON_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Configure AWS credentials
+        if: steps.check-release.outputs.skip_publish != 'true'
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.ECR_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.ECR_AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1  # required for Public ECR
+
+      - name: Login to AWS Public ECR
+        if: steps.check-release.outputs.skip_publish != 'true'
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+        with:
+          registry-type: public
+
+      - name: Build and push Docker image
+        if: steps.check-release.outputs.skip_publish != 'true'
+        env:
+          VERSION: ${{ steps.set-version.outputs.VERSION }}
+          ECR_REGISTRY: public.ecr.aws/g0e9g3b1
+          ECR_REPOSITORY: decode-cloud/worker-api
+          PYTHON_VERSION: ${{ steps.get-python-version.outputs.PYTHON_VERSION }}
+        run: |
+          echo "Building image: $ECR_REGISTRY/$ECR_REPOSITORY:$VERSION"
+          docker build --build-arg PYTHON_VERSION=$PYTHON_VERSION -t $ECR_REGISTRY/$ECR_REPOSITORY:$VERSION .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$VERSION
+
+          if [[ "$VERSION" != dev-* ]]; then
+            echo "Tagging as latest"
+            docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$VERSION $ECR_REGISTRY/$ECR_REPOSITORY:latest
+            docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          fi
+
+          echo "## 🚀 Docker Image Published" >> $GITHUB_STEP_SUMMARY
+          echo "\`$ECR_REGISTRY/$ECR_REPOSITORY:$VERSION\`" >> $GITHUB_STEP_SUMMARY
+          if [[ "$VERSION" != dev-* ]]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Also tagged as: \`$ECR_REGISTRY/$ECR_REPOSITORY:latest\`" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Create and push annotated git tag
+        if: steps.check-release.outputs.skip_publish != 'true' && steps.set-version-type.outputs.VERSION_TYPE == 'prod'
+        env:
+          VERSION: ${{ steps.set-version.outputs.VERSION }}
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git tag -a "$VERSION" -m "Release $VERSION"
+          git push origin "$VERSION"
+
+      - name: Create GitHub release
+        if: steps.check-release.outputs.skip_publish != 'true' && steps.set-version-type.outputs.VERSION_TYPE == 'prod'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.set-version.outputs.VERSION }}
+          name: Release ${{ steps.set-version.outputs.VERSION }}
+          generate_release_notes: true
