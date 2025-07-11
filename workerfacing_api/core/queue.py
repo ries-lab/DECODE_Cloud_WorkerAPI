@@ -18,7 +18,7 @@ from sqlalchemy.orm import Query, Session
 
 from workerfacing_api import settings
 from workerfacing_api.crud import job_tracking
-from workerfacing_api.exceptions import JobDeletedException
+from workerfacing_api.exceptions import JobDeletedException, JobNotAssignedException
 from workerfacing_api.schemas.queue_jobs import (
     EnvironmentTypes,
     JobFilter,
@@ -485,7 +485,7 @@ class RDSJobQueue(JobQueue):
         if hostname:
             workers = job.workers.split(";")
             if not workers or hostname != workers[-1]:
-                raise ValueError(
+                raise JobNotAssignedException(
                     f"Job with id {job_id} is not assigned to worker {hostname}"
                 )
         return job
