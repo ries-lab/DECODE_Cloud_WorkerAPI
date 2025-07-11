@@ -2,6 +2,7 @@ import requests
 from fastapi.encoders import jsonable_encoder
 
 import workerfacing_api.settings as settings
+from workerfacing_api.exceptions import JobDeletedException
 from workerfacing_api.schemas.rds_models import JobStates
 
 
@@ -19,7 +20,7 @@ def update_job(
         headers={"x-api-key": settings.internal_api_key_secret},
     )
     if resp.status_code == 404:
-        raise ValueError(
+        raise JobDeletedException(
             f"Job {job_id} not found; it was probably deleted by the user."
         )
     resp.raise_for_status()
