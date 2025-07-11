@@ -10,7 +10,7 @@ from typing import Any, Type
 
 import botocore.exceptions
 from deprecated import deprecated
-from dict_hash import sha256
+from dict_hash import sha256  # type: ignore
 from mypy_boto3_sqs import SQSClient
 from sqlalchemy import create_engine, inspect, not_
 from sqlalchemy.engine import Engine
