@@ -45,7 +45,10 @@ class WorkerGroupCognitoCurrentUser(CognitoCurrentUser):  # type: ignore
     user_info = GroupClaims
 
     async def call(self, http_auth: HTTPAuthorizationCredentials) -> Any:
+        print("WorkerGroupCognitoCurrentUser call")
         user_info = await super().call(http_auth)
+        print(f"{user_info=}")
+        print(f"cognito_groups={getattr(user_info, 'cognito_groups', None)}")
         if "workers" not in (getattr(user_info, "cognito_groups") or []):
             raise HTTPException(
                 status_code=403, detail="Not a member of the 'workers' group"
