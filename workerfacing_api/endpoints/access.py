@@ -18,6 +18,10 @@ class AccessType(enum.Enum):
 @router.get(
     "/access_info",
     response_model=dict[AccessType, dict[str, str | None]],
+    status_code=200,
+    responses={
+        200: {"description": "Access information retrieved successfully"},
+    },
     description="Get information about where API users should authenticate.",
 )
 def get_access_info() -> dict[AccessType, dict[str, str | None]]:
