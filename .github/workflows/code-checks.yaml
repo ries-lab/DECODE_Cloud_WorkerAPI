@@ -14,14 +14,13 @@ jobs:
     timeout-minutes: 10
     steps:
     - uses: actions/checkout@v4
-    - name: Install poetry
-      run: pipx install poetry
     - uses: actions/setup-python@v5
       with:
         python-version: '3.11.10'
-        cache: 'poetry'
+    - name: Install poetry
+      run: pip install poetry
     - name: Install dependencies
-      run: poetry install
+      run: python -m poetry install
     - name: Ruff check
       run: poetry run ruff check .
     - name: Ruff format check
@@ -33,14 +32,13 @@ jobs:
     timeout-minutes: 60
     steps:
     - uses: actions/checkout@v4
-    - name: Install poetry
-      run: pipx install poetry
     - uses: actions/setup-python@v5
       with:
         python-version: '3.11.10'
-        cache: 'poetry'
+    - name: Install poetry
+      run: pip install poetry
     - name: Install dependencies
-      run: poetry install
+      run: python -m poetry install
     - name: configure AWS
       uses: aws-actions/configure-aws-credentials@v4
       with:
