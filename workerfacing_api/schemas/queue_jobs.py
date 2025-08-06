@@ -1,7 +1,7 @@
 import enum
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class EnvironmentTypes(enum.Enum):
@@ -11,33 +11,36 @@ class EnvironmentTypes(enum.Enum):
 
 
 class HardwareSpecs(BaseModel):
-    cpu_cores: int | None = None
-    memory: int | None = None
-    gpu_model: str | None = None
-    gpu_archi: str | None = None
-    gpu_mem: int | None = None
+    cpu_cores: int | None = Field(default=None, example=2)
+    memory: int | None = Field(default=None, example=4096)
+    gpu_model: str | None = Field(default=None, example="RTX3080")
+    gpu_archi: str | None = Field(default=None, example="ampere")
+    gpu_mem: int | None = Field(default=None, example=8192)
 
 
 class MetaSpecs(BaseModel):
-    job_id: int
-    date_created: str  # iso format
+    job_id: int = Field(..., example=12345)
+    date_created: str = Field(..., example="2024-01-15T10:30:00Z")  # iso format
 
     class Config:
         extra = "allow"
 
 
 class AppSpecs(BaseModel):
-    cmd: list[str] | None = None
-    env: dict[str, str] | None = None
+    cmd: list[str] | None = Field(default=None, example=["python", "main.py", "--config", "config.json"])
+    env: dict[str, str] | None = Field(default=None, example={"CUDA_VISIBLE_DEVICES": "0", "PYTHONPATH": "/app"})
 
 
 class HandlerSpecs(BaseModel):
-    image_url: str
-    image_name: str | None = None
-    image_version: str | None = None
-    entrypoint: str | None = None
-    files_down: dict[str, str] | None = None
-    files_up: dict[Literal["output", "log", "artifact"], str] | None = None
+    image_url: str = Field(..., example="ghcr.io/decode/decode-ml:latest")
+    image_name: str | None = Field(default=None, example="decode-ml")
+    image_version: str | None = Field(default=None, example="v1.2.0")
+    entrypoint: str | None = Field(default=None, example="/app/entrypoint.sh")
+    files_down: dict[str, str] | None = Field(default=None, example={"data": "/input/data"})
+    files_up: dict[Literal["output", "log", "artifact"], str] | None = Field(
+        default=None, 
+        example={"output": "/results", "log": "/logs", "artifact": "/artifacts"}
+    )
 
 
 class JobSpecs(BaseModel):
@@ -48,16 +51,16 @@ class JobSpecs(BaseModel):
 
 
 class PathsUploadSpecs(BaseModel):
-    output: str
-    log: str
-    artifact: str
+    output: str = Field(..., example="s3://decode-bucket/jobs/12345/output")
+    log: str = Field(..., example="s3://decode-bucket/jobs/12345/log")
+    artifact: str = Field(..., example="s3://decode-bucket/jobs/12345/artifact")
 
 
 class SubmittedJob(BaseModel):
     job: JobSpecs
-    environment: EnvironmentTypes = EnvironmentTypes.any
-    group: str | None = None
-    priority: int = 5
+    environment: EnvironmentTypes = Field(default=EnvironmentTypes.any, example=EnvironmentTypes.cloud)
+    group: str | None = Field(default=None, example="gpu-group")
+    priority: int = Field(default=5, example=7)
     paths_upload: PathsUploadSpecs
 
 

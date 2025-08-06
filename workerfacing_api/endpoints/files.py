@@ -13,6 +13,12 @@ router = APIRouter()
 @router.get(
     "/files/{file_id:path}/download",
     response_class=FileResponse,
+    status_code=200,
+    responses={
+        200: {"description": "File downloaded successfully"},
+        404: {"description": "File not found"},
+        403: {"description": "Permission denied"},
+    },
     description="Download a file from the filesystem.",
 )
 async def download_file(
@@ -29,6 +35,12 @@ async def download_file(
 @router.get(
     "/files/{file_id:path}/url",
     response_model=FileHTTPRequest,
+    status_code=200,
+    responses={
+        200: {"description": "File download URL retrieved successfully"},
+        404: {"description": "File not found"},
+        403: {"description": "Permission denied"},
+    },
     description="Get request parameters to download a file from the filesystem.",
 )
 async def get_download_presigned_url(
