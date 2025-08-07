@@ -46,7 +46,8 @@ jobs:
         id: set-version
         run: |
           if [ "${{ steps.set-version-type.outputs.VERSION_TYPE }}" = "prod" ]; then
-            pip install poetry
+            POETRY_VERSION=$(grep -E '^requires-poetry = ' pyproject.toml | sed -E 's/requires-poetry = "(.*)"/\1/')
+            pip install poetry==$POETRY_VERSION
             VERSION=$(poetry version -s)
           else
             VERSION="dev-${GITHUB_SHA::7}"
