@@ -18,9 +18,11 @@ jobs:
       with:
         python-version: '3.11.10'
     - name: Install poetry
-      run: pip install poetry
+      run: |
+        POETRY_VERSION=$(grep -E '^requires-poetry = ' pyproject.toml | sed -E 's/requires-poetry = "(.*)"/\1/')
+        pip install poetry==$POETRY_VERSION
     - name: Install dependencies
-      run: python -m poetry install
+      run: poetry install
     - name: Ruff check
       run: poetry run ruff check .
     - name: Ruff format check
@@ -36,9 +38,11 @@ jobs:
       with:
         python-version: '3.11.10'
     - name: Install poetry
-      run: pip install poetry
+      run: |
+        POETRY_VERSION=$(grep -E '^requires-poetry = ' pyproject.toml | sed -E 's/requires-poetry = "(.*)"/\1/')
+        pip install poetry==$POETRY_VERSION
     - name: Install dependencies
-      run: python -m poetry install
+      run: poetry install
     - name: configure AWS
       uses: aws-actions/configure-aws-credentials@v4
       with:
