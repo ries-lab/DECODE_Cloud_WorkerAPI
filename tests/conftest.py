@@ -1,3 +1,4 @@
+import datetime
 import secrets
 import time
 from typing import Any, Generator
@@ -11,6 +12,9 @@ from mypy_boto3_s3.literals import BucketLocationConstraintType
 from sqlalchemy import Engine, MetaData, create_engine
 
 from workerfacing_api.crud import job_tracking
+
+TEST_BUCKET_PREFIX = "decode-cloud-worker-api-tests-"
+REGION_NAME: BucketLocationConstraintType = "eu-central-1"
 
 
 @pytest.fixture(scope="module")
@@ -136,9 +140,10 @@ class RDSTestingInstance:
 
 
 class S3TestingBucket:
-    def __init__(self, bucket_name: str):
-        self.bucket_name = bucket_name
-        self.region_name: BucketLocationConstraintType = "eu-central-1"
+    def __init__(self, bucket_name_suffix: str):
+        # S3 bucket names must be globally unique - avoid collisions by adding suffix
+        self.bucket_name = f"{TEST_BUCKET_PREFIX}-{bucket_name_suffix}"
+        self.region_name: BucketLocationConstraintType = REGION_NAME
         self.s3_client = boto3.client(
             "s3",
             region_name=self.region_name,
@@ -172,3 +177,29 @@ class S3TestingBucket:
                 CreateBucketConfiguration={"LocationConstraint": self.region_name},
             )
             self.s3_client.get_waiter("bucket_exists").wait(Bucket=self.bucket_name)
+
+
+@pytest.fixture(scope="session")
+def bucket_suffix() -> str:
+    return datetime.datetime.now(datetime.UTC).strftime("%Y%m%d%H%M%S")
+
+
+@pytest.mark.aws
+@pytest.fixture(scope="session", autouse=True)
+def cleanup_old_test_buckets() -> None:
+    """
+    Find and delete all S3 buckets with the test prefix.
+    This helps clean up buckets from previous test runs.
+    """
+    s3_client = boto3.client("s3", region_name=REGION_NAME)
+    response = s3_client.list_buckets(Prefix=TEST_BUCKET_PREFIX)
+    for bucket in response["Buckets"]:
+        bucket_name = bucket["Name"]
+        s3 = boto3.resource("s3", region_name=REGION_NAME)
+        s3_bucket = s3.Bucket(bucket_name)
+        bucket_versioning = s3.BucketVersioning(bucket_name)
+        if bucket_versioning.status == "Enabled":
+            s3_bucket.object_versions.delete()
+        else:
+            s3_bucket.objects.all().delete()
+        s3_client.delete_bucket(Bucket=bucket_name)
