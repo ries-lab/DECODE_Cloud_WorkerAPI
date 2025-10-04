@@ -44,19 +44,12 @@ def env(request: pytest.FixtureRequest) -> str:
 
 @pytest.fixture(scope="module")
 def base_filesystem(
-    env: str, base_dir: str, monkeypatch_module: pytest.MonkeyPatch
+    env: str, base_dir: str, monkeypatch_module: pytest.MonkeyPatch, bucket_suffix: str
 ) -> Generator[FileSystem, Any, None]:
-    bucket_name = "decode-cloud-integration-tests"
-
     monkeypatch_module.setattr(
         settings,
         "user_data_root_path",
         base_dir,
-    )
-    monkeypatch_module.setattr(
-        settings,
-        "s3_bucket",
-        bucket_name,
     )
     monkeypatch_module.setattr(
         settings,
@@ -70,7 +63,13 @@ def base_filesystem(
         shutil.rmtree(base_dir, ignore_errors=True)
 
     elif env == "aws":
-        testing_bucket = S3TestingBucket(bucket_name)
+        testing_bucket = S3TestingBucket(bucket_suffix)
+        # Update settings to use the actual unique bucket name created by S3TestingBucket
+        monkeypatch_module.setattr(
+            settings,
+            "s3_bucket",
+            testing_bucket.bucket_name,
+        )
         yield S3Filesystem(testing_bucket.s3_client, testing_bucket.bucket_name)
         testing_bucket.cleanup()
 

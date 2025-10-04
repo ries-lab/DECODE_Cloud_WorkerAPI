@@ -231,10 +231,12 @@ class TestS3Filesystem(_TestFilesystem):
         return cast(bool, request.param)
 
     @pytest.fixture(scope="class")
-    def base_filesystem(self, mock_aws_: bool) -> Generator[S3Filesystem, Any, None]:
+    def base_filesystem(
+        self, mock_aws_: bool, bucket_suffix: str
+    ) -> Generator[S3Filesystem, Any, None]:
         context_manager = mock_aws if mock_aws_ else nullcontext
         with context_manager():
-            testing_bucket = S3TestingBucket(self.bucket_name)
+            testing_bucket = S3TestingBucket(bucket_suffix)
             yield S3Filesystem(testing_bucket.s3_client, testing_bucket.bucket_name)
             testing_bucket.cleanup()
 
