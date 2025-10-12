@@ -27,17 +27,17 @@ from workerfacing_api.schemas.queue_jobs import (
 from workerfacing_api.schemas.rds_models import JobStates
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def app() -> AppSpecs:
     return AppSpecs(cmd=["cmd"], env={"env": "var"})
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def handler() -> HandlerSpecs:
     return HandlerSpecs(image_url="u", files_up={"output": "out"})
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def paths_upload(
     env: str, test_username: str, base_filesystem: FileSystem
 ) -> PathsUploadSpecs:
@@ -55,7 +55,7 @@ def paths_upload(
 class TestJobs(_TestEndpoint):
     endpoint = "/jobs"
 
-    @pytest.fixture(scope="module")
+    @pytest.fixture(scope="session")
     def passing_params(self) -> list[EndpointParams]:
         return [EndpointParams("get", params={"memory": 1})]
 

@@ -301,7 +301,8 @@ class TestRDSLocalQueue(_TestRDSQueue):
 @pytest.mark.aws
 class TestRDSAWSQueue(_TestRDSQueue):
     @pytest.fixture(scope="class")
-    def base_queue(self) -> Generator[RDSJobQueue, Any, None]:
-        db = RDSTestingInstance("decodecloudqueuetests")
-        yield RDSJobQueue(db.db_url)
-        db.cleanup()
+    def base_queue(
+        self, rds_testing_instance: RDSTestingInstance
+    ) -> Generator[RDSJobQueue, Any, None]:
+        yield RDSJobQueue(rds_testing_instance.db_url)
+        rds_testing_instance.cleanup()

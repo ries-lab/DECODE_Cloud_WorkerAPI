@@ -20,11 +20,11 @@ class _TestEndpoint(abc.ABC):
     endpoint = ""
 
     @abc.abstractmethod
-    @pytest.fixture(scope="module")
+    @pytest.fixture(scope="session")
     def passing_params(self, *args: Any, **kwargs: Any) -> list[EndpointParams]:
         raise NotImplementedError
 
-    @pytest.fixture(scope="module")
+    @pytest.fixture(scope="session")
     def client(self) -> TestClient:
         return TestClient(workerfacing_app)
 
