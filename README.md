@@ -73,4 +73,4 @@ Run them with `poetry run pytest`.
 
 Note that tests marked with `aws` are skipped by default, to avoid the need for an AWS setup.
 They are however ran in the GitHub Action.
-For this to work, they must have been ran once locally with an account with sufficient permissions (`poetry run pytest -m "aws"`), since for security reasons, the AWS account used on GitHub does not have permissions to create RDS instances.
+You can run them locally by adding `-m 'aws or not(aws)'` to the `pytest` command.

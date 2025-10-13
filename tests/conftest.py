@@ -17,13 +17,13 @@ TEST_BUCKET_PREFIX = "decode-cloud-worker-api-tests-"
 REGION_NAME: BucketLocationConstraintType = "eu-central-1"
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def monkeypatch_module() -> Generator[pytest.MonkeyPatch, Any, None]:
     with pytest.MonkeyPatch.context() as mp:
         yield mp
 
 
-@pytest.fixture(autouse=True, scope="module")
+@pytest.fixture(autouse=True, scope="session")
 def patch_update_job(monkeypatch_module: pytest.MonkeyPatch) -> MagicMock:
     mock_update_job = MagicMock()
     monkeypatch_module.setattr(job_tracking, "update_job", mock_update_job)
@@ -33,14 +33,16 @@ def patch_update_job(monkeypatch_module: pytest.MonkeyPatch) -> MagicMock:
 class RDSTestingInstance:
     def __init__(self, db_name: str):
         self.db_name = db_name
+
+    def create(self) -> None:
         self.rds_client = boto3.client("rds", "eu-central-1")
         self.ec2_client = boto3.client("ec2", "eu-central-1")
         self.add_ingress_rule()
         self.db_url = self.create_db_url()
+        self.engine = self.get_engine()
         self.delete_db_tables()
 
-    @property
-    def engine(self) -> Engine:
+    def get_engine(self) -> Engine:
         for _ in range(5):
             try:
                 engine = create_engine(self.db_url)
@@ -112,12 +114,14 @@ class RDSTestingInstance:
                         DBName=self.db_name,
                         DBInstanceIdentifier=self.db_name,
                         AllocatedStorage=20,
-                        DBInstanceClass="db.t3.micro",
+                        DBInstanceClass="db.t4g.micro",
                         Engine="postgres",
                         MasterUsername=user,
                         MasterUserPassword=password,
                         DeletionProtection=False,
                         BackupRetentionPeriod=0,
+                        MultiAZ=False,
+                        EnablePerformanceInsights=False,
                     )
                     break
                 except self.rds_client.exceptions.DBInstanceAlreadyExistsFault:
@@ -138,19 +142,34 @@ class RDSTestingInstance:
         self.delete_db_tables()
         self.ec2_client.revoke_security_group_ingress(**self.vpc_sg_rule_params)
 
+    def delete(self) -> None:
+        self.rds_client.delete_db_instance(
+            DBInstanceIdentifier=self.db_name,
+            SkipFinalSnapshot=True,
+            DeleteAutomatedBackups=True,
+        )
+
 
 class S3TestingBucket:
     def __init__(self, bucket_name_suffix: str):
         # S3 bucket names must be globally unique - avoid collisions by adding suffix
         self.bucket_name = f"{TEST_BUCKET_PREFIX}-{bucket_name_suffix}"
         self.region_name: BucketLocationConstraintType = REGION_NAME
+
+    def create(self) -> None:
         self.s3_client = boto3.client(
             "s3",
             region_name=self.region_name,
             # required for pre-signing URLs to work
             endpoint_url=f"https://s3.{self.region_name}.amazonaws.com",
         )
-        self.initialize_bucket()
+        exists = self.cleanup()
+        if not exists:
+            self.s3_client.create_bucket(
+                Bucket=self.bucket_name,
+                CreateBucketConfiguration={"LocationConstraint": self.region_name},
+            )
+            self.s3_client.get_waiter("bucket_exists").wait(Bucket=self.bucket_name)
 
     def cleanup(self) -> bool:
         """Returns True if bucket exists and all objects are deleted."""
@@ -169,19 +188,21 @@ class S3TestingBucket:
             s3_bucket.objects.all().delete()
         return True
 
-    def initialize_bucket(self) -> None:
+    def delete(self) -> None:
         exists = self.cleanup()
-        if not exists:
-            self.s3_client.create_bucket(
-                Bucket=self.bucket_name,
-                CreateBucketConfiguration={"LocationConstraint": self.region_name},
-            )
-            self.s3_client.get_waiter("bucket_exists").wait(Bucket=self.bucket_name)
+        if exists:
+            self.s3_client.delete_bucket(Bucket=self.bucket_name)
 
 
 @pytest.fixture(scope="session")
-def bucket_suffix() -> str:
-    return datetime.datetime.now(datetime.UTC).strftime("%Y%m%d%H%M%S")
+def rds_testing_instance() -> RDSTestingInstance:
+    return RDSTestingInstance("decodecloudintegrationtestsworkerapi")
+
+
+@pytest.fixture(scope="session")
+def s3_testing_bucket() -> S3TestingBucket:
+    bucket_suffix = datetime.datetime.now(datetime.UTC).strftime("%Y%m%d%H%M%S")
+    return S3TestingBucket(bucket_suffix)
 
 
 @pytest.mark.aws

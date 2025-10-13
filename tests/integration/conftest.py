@@ -1,5 +1,5 @@
 import shutil
-from typing import Any, Generator
+from typing import Any, Generator, cast
 
 import pytest
 
@@ -18,33 +18,46 @@ from workerfacing_api.dependencies import (
 from workerfacing_api.main import workerfacing_app
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def test_username() -> str:
     return "test_user"
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def base_dir() -> str:
     return "int_test_dir"
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def internal_api_key_secret() -> str:
     return "test_internal_api_key"
 
 
 @pytest.fixture(
-    scope="module",
+    scope="session",
     params=["local", pytest.param("aws", marks=pytest.mark.aws)],
 )
-def env(request: pytest.FixtureRequest) -> str:
-    assert isinstance(request.param, str)
-    return request.param
+def env(
+    request: pytest.FixtureRequest,
+    rds_testing_instance: RDSTestingInstance,
+    s3_testing_bucket: S3TestingBucket,
+) -> Generator[str, Any, None]:
+    env = cast(str, request.param)
+    if env == "aws":
+        rds_testing_instance.create()
+        s3_testing_bucket.create()
+    yield env
+    if env == "aws":
+        rds_testing_instance.delete()
+        s3_testing_bucket.delete()
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def base_filesystem(
-    env: str, base_dir: str, monkeypatch_module: pytest.MonkeyPatch, bucket_suffix: str
+    env: str,
+    base_dir: str,
+    monkeypatch_module: pytest.MonkeyPatch,
+    s3_testing_bucket: S3TestingBucket,
 ) -> Generator[FileSystem, Any, None]:
     monkeypatch_module.setattr(
         settings,
@@ -63,39 +76,39 @@ def base_filesystem(
         shutil.rmtree(base_dir, ignore_errors=True)
 
     elif env == "aws":
-        testing_bucket = S3TestingBucket(bucket_suffix)
         # Update settings to use the actual unique bucket name created by S3TestingBucket
         monkeypatch_module.setattr(
             settings,
             "s3_bucket",
-            testing_bucket.bucket_name,
+            s3_testing_bucket.bucket_name,
         )
-        yield S3Filesystem(testing_bucket.s3_client, testing_bucket.bucket_name)
-        testing_bucket.cleanup()
+        yield S3Filesystem(s3_testing_bucket.s3_client, s3_testing_bucket.bucket_name)
+        s3_testing_bucket.cleanup()
 
     else:
         raise NotImplementedError
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def queue(
-    env: str, tmpdir_factory: pytest.TempdirFactory
+    env: str,
+    rds_testing_instance: RDSTestingInstance,
+    tmpdir_factory: pytest.TempdirFactory,
 ) -> Generator[RDSJobQueue, Any, None]:
     if env == "local":
         queue = RDSJobQueue(
             f"sqlite:///{tmpdir_factory.mktemp('integration')}/local.db"
         )
     else:
-        db = RDSTestingInstance("decodecloudintegrationtests")
-        queue = RDSJobQueue(db.db_url)
+        queue = RDSJobQueue(rds_testing_instance.db_url)
     queue.create(err_on_exists=True)
     yield queue
     queue.delete()
     if env == "aws":
-        db.cleanup()
+        rds_testing_instance.cleanup()
 
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(scope="session", autouse=True)
 def override_filesystem_dep(
     base_filesystem: FileSystem, monkeypatch_module: pytest.MonkeyPatch
 ) -> None:
@@ -106,7 +119,7 @@ def override_filesystem_dep(
     )
 
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(scope="session", autouse=True)
 def override_queue_dep(
     queue: RDSJobQueue, monkeypatch_module: pytest.MonkeyPatch
 ) -> None:
@@ -117,7 +130,7 @@ def override_queue_dep(
     )
 
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(scope="session", autouse=True)
 def override_auth(monkeypatch_module: pytest.MonkeyPatch, test_username: str) -> None:
     monkeypatch_module.setitem(
         workerfacing_app.dependency_overrides,  # type: ignore
@@ -132,7 +145,7 @@ def override_auth(monkeypatch_module: pytest.MonkeyPatch, test_username: str) ->
     )
 
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(scope="session", autouse=True)
 def override_internal_api_key_secret(
     monkeypatch_module: pytest.MonkeyPatch, internal_api_key_secret: str
 ) -> str:

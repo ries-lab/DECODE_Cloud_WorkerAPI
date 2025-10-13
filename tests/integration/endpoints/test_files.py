@@ -10,12 +10,12 @@ from tests.integration.endpoints.conftest import EndpointParams, _TestEndpoint
 from workerfacing_api.core.filesystem import FileSystem, S3Filesystem
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def data_file1_name(base_dir: str) -> str:
     return f"{base_dir}/data/test/data_file1.txt"
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def data_file1_path(env: str, data_file1_name: str, base_filesystem: FileSystem) -> str:
     if env == "aws":
         base_filesystem = cast(S3Filesystem, base_filesystem)
@@ -23,12 +23,12 @@ def data_file1_path(env: str, data_file1_name: str, base_filesystem: FileSystem)
     return data_file1_name
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def data_file1_contents() -> str:
     return "data_file1"
 
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(scope="session", autouse=True)
 def data_file1(
     env: str,
     base_filesystem: FileSystem,
@@ -51,7 +51,7 @@ def data_file1(
 class TestFiles(_TestEndpoint):
     endpoint = "/files"
 
-    @pytest.fixture(scope="module")
+    @pytest.fixture(scope="session")
     def passing_params(self, data_file1_path: str) -> list[EndpointParams]:
         return [
             EndpointParams("get", f"{data_file1_path}/url"),
