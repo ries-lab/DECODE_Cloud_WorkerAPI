@@ -240,7 +240,7 @@ class TestS3Filesystem(_TestFilesystem):
             yield S3Filesystem(
                 s3_testing_bucket.s3_client, s3_testing_bucket.bucket_name
             )
-            s3_testing_bucket.delete()
+            s3_testing_bucket.cleanup()
 
     @pytest.fixture(scope="class", autouse=True)
     def data_file1(

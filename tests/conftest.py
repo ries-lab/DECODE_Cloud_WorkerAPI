@@ -143,6 +143,9 @@ class RDSTestingInstance:
         self.ec2_client.revoke_security_group_ingress(**self.vpc_sg_rule_params)
 
     def delete(self) -> None:
+        # never used (AWS tests skipped)
+        if not hasattr(self, "rds_client"):
+            return
         self.rds_client.delete_db_instance(
             DBInstanceIdentifier=self.db_name,
             SkipFinalSnapshot=True,
@@ -189,20 +192,33 @@ class S3TestingBucket:
         return True
 
     def delete(self) -> None:
+        # never used (AWS tests skipped)
+        if not hasattr(self, "s3_client"):
+            return
         exists = self.cleanup()
         if exists:
             self.s3_client.delete_bucket(Bucket=self.bucket_name)
 
 
 @pytest.fixture(scope="session")
-def rds_testing_instance() -> RDSTestingInstance:
-    return RDSTestingInstance("decodecloudintegrationtestsworkerapi")
+def rds_testing_instance() -> Generator[RDSTestingInstance, Any, None]:
+    # tests themselves must create the instance by calling instance.create();
+    # this way, if no test that needs the DB is run, no RDS instance is created
+    # instance.delete() only deletes the RDS instance if it was created
+    instance = RDSTestingInstance("decodecloudintegrationtestsworkerapi")
+    yield instance
+    instance.delete()
 
 
 @pytest.fixture(scope="session")
-def s3_testing_bucket() -> S3TestingBucket:
+def s3_testing_bucket() -> Generator[S3TestingBucket, Any, None]:
+    # tests themselves must create the bucket by calling bucket.create();
+    # this way, if no test that needs the bucket is run, no S3 bucket is created
+    # bucket.delete() only deletes the S3 bucket if it was created
     bucket_suffix = datetime.datetime.now(datetime.UTC).strftime("%Y%m%d%H%M%S")
-    return S3TestingBucket(bucket_suffix)
+    bucket = S3TestingBucket(bucket_suffix)
+    yield bucket
+    bucket.delete()
 
 
 @pytest.mark.aws
