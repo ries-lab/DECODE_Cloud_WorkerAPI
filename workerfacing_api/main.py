@@ -6,6 +6,7 @@ dotenv.load_dotenv()
 
 from workerfacing_api import dependencies, settings, tags
 from workerfacing_api.endpoints import access, files, jobs, jobs_post
+from workerfacing_api.schemas.responses import WelcomeMessage
 
 workerfacing_app = FastAPI(openapi_tags=tags.tags_metadata)
 
@@ -45,6 +46,15 @@ async def find_failed_jobs() -> dict[str, int]:
         return {"n_retry": 0, "n_fail": 0}
 
 
-@workerfacing_app.get("/")
-async def root() -> dict[str, str]:
-    return {"message": "Welcome to the DECODE OpenCloud Worker-facing API"}
+@workerfacing_app.get(
+    "/",
+    response_model=WelcomeMessage,
+    status_code=200,
+    responses={
+        200: {"description": "Welcome message", "model": WelcomeMessage},
+    },
+    description="Root endpoint that returns a welcome message for the DECODE OpenCloud Worker-facing API",
+    tags=["Root"],
+)
+async def root() -> WelcomeMessage:
+    return WelcomeMessage(message="Welcome to the DECODE OpenCloud Worker-facing API")

@@ -25,6 +25,7 @@ from workerfacing_api.schemas.queue_jobs import (
     JobSpecs,
 )
 from workerfacing_api.schemas.rds_models import JobStates, QueuedJob
+from workerfacing_api.schemas.responses import UploadSuccess
 
 router = APIRouter()
 
@@ -32,6 +33,11 @@ router = APIRouter()
 @router.get(
     "/jobs",
     response_model=dict[int, JobSpecs],
+    status_code=200,
+    responses={
+        200: {"description": "Jobs retrieved successfully"},
+        500: {"description": "Internal server error"},
+    },
     tags=["Jobs"],
     description="Pull jobs from the queue",
 )
@@ -85,6 +91,11 @@ async def get_jobs(
     "/jobs/{job_id}/status",
     tags=["Jobs"],
     response_model=JobStates,
+    status_code=200,
+    responses={
+        200: {"description": "Job status retrieved successfully"},
+        404: {"description": "Job not found"},
+    },
     description="Get the status of a job",
 )
 async def get_job_status(
@@ -100,6 +111,10 @@ async def get_job_status(
     "/jobs/{job_id}/status",
     tags=["Jobs"],
     status_code=httpstatus.HTTP_204_NO_CONTENT,
+    responses={
+        204: {"description": "Job status updated successfully"},
+        404: {"description": "Job not found or not assigned to this worker"},
+    },
     description="Update the status of a job (or ping for keep-alive)",
 )
 async def put_job_status(
@@ -132,6 +147,12 @@ def _upload_path(job: QueuedJob, type: UploadType, path: str) -> str:
 @router.post(
     "/jobs/{job_id}/files/upload",
     status_code=httpstatus.HTTP_201_CREATED,
+    response_model=UploadSuccess,
+    responses={
+        201: {"description": "File uploaded successfully"},
+        404: {"description": "Job not found"},
+        403: {"description": "Permission denied"},
+    },
     tags=["Files"],
     description="Upload a file to the job's output, log or artifact directory",
 )
@@ -143,14 +164,15 @@ async def upload_file(
     file: UploadFile = File(...),
     filesystem: FileSystem = Depends(filesystem_dep),
     queue: RDSJobQueue = Depends(queue_dep),
-) -> None:
+) -> UploadSuccess:
     try:
         job = queue.get_job(job_id, hostname=request.state.current_user.username)
     except ValueError:
         raise HTTPException(status_code=httpstatus.HTTP_404_NOT_FOUND)
     path = _upload_path(job, type, base_path)
     try:
-        return filesystem.post_file(file, path)
+        filesystem.post_file(file, path)
+        return UploadSuccess()
     except PermissionError as e:
         raise HTTPException(status_code=httpstatus.HTTP_403_FORBIDDEN, detail=str(e))
 
@@ -159,6 +181,11 @@ async def upload_file(
     "/jobs/{job_id}/files/url",
     status_code=httpstatus.HTTP_201_CREATED,
     response_model=FileHTTPRequest,
+    responses={
+        201: {"description": "Presigned upload URL generated successfully"},
+        404: {"description": "Job not found"},
+        403: {"description": "Permission denied"},
+    },
     tags=["Files"],
     description="Get a presigned URL to upload a file to the job's output, log or artifact directory",
 )
