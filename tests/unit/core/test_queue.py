@@ -304,5 +304,6 @@ class TestRDSAWSQueue(_TestRDSQueue):
     def base_queue(
         self, rds_testing_instance: RDSTestingInstance
     ) -> Generator[RDSJobQueue, Any, None]:
+        rds_testing_instance.create()
         yield RDSJobQueue(rds_testing_instance.db_url)
         rds_testing_instance.cleanup()
