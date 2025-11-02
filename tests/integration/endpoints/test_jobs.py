@@ -9,6 +9,7 @@ import pytest
 import requests
 from fastapi.testclient import TestClient
 
+from tests.conftest import RDSTestingInstance
 from tests.integration.endpoints.conftest import EndpointParams, _TestEndpoint
 from workerfacing_api.core.filesystem import FileSystem, LocalFilesystem, S3Filesystem
 from workerfacing_api.core.queue import RDSJobQueue
@@ -60,8 +61,16 @@ class TestJobs(_TestEndpoint):
         return [EndpointParams("get", params={"memory": 1})]
 
     @pytest.fixture(scope="function", autouse=True)
-    def cleanup_queue(self, queue: RDSJobQueue) -> None:
-        queue.delete()
+    def cleanup_queue(
+        self,
+        queue: RDSJobQueue,
+        env: str,
+        rds_testing_instance: RDSTestingInstance,
+    ) -> None:
+        if env == "local":
+            queue.delete()
+        else:
+            rds_testing_instance.cleanup()
         queue.create()
 
     @pytest.fixture(scope="function")
