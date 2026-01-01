@@ -48,8 +48,8 @@ def env(
         s3_testing_bucket.create()
     yield env
     if env == "aws":
-        rds_testing_instance.delete()
-        s3_testing_bucket.delete()
+        rds_testing_instance.cleanup()
+        s3_testing_bucket.cleanup()
 
 
 @pytest.fixture(scope="session")
@@ -103,9 +103,6 @@ def queue(
         queue = RDSJobQueue(rds_testing_instance.db_url)
     queue.create(err_on_exists=True)
     yield queue
-    queue.delete()
-    if env == "aws":
-        rds_testing_instance.cleanup()
 
 
 @pytest.fixture(scope="session", autouse=True)

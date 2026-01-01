@@ -168,6 +168,7 @@ class TestLocalQueue(_TestJobQueue):
         queue_path = str(tmpdir_factory.mktemp("queue") / "queue.pkl")
         base_queue = LocalJobQueue(queue_path)
         yield base_queue
+        base_queue.delete()
 
 
 class TestSQSQueue(_TestJobQueue):
@@ -294,8 +295,7 @@ class TestRDSLocalQueue(_TestRDSQueue):
     def base_queue(
         self, tmpdir_factory: pytest.TempdirFactory
     ) -> Generator[RDSJobQueue, Any, None]:
-        base_queue = RDSJobQueue(f"sqlite:///{tmpdir_factory.mktemp('queue')}/local.db")
-        yield base_queue
+        yield RDSJobQueue(f"sqlite:///{tmpdir_factory.mktemp('queue')}/local.db")
 
 
 @pytest.mark.aws
@@ -304,5 +304,6 @@ class TestRDSAWSQueue(_TestRDSQueue):
     def base_queue(
         self, rds_testing_instance: RDSTestingInstance
     ) -> Generator[RDSJobQueue, Any, None]:
+        rds_testing_instance.create()
         yield RDSJobQueue(rds_testing_instance.db_url)
         rds_testing_instance.cleanup()
