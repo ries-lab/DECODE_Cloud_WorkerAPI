@@ -103,7 +103,6 @@ def queue(
         queue = RDSJobQueue(rds_testing_instance.db_url)
     queue.create(err_on_exists=True)
     yield queue
-    queue.delete()
 
 
 @pytest.fixture(scope="session", autouse=True)
