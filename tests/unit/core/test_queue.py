@@ -65,6 +65,7 @@ class _TestJobQueue(abc.ABC):
     ) -> Generator[JobQueue, Any, None]:
         # function-scoped, clears the queue (delete)
         # and re-initializes it (create) before every test
+        base_queue.delete()
         success = False
         for _ in range(10):  # i.p. SQS, RDS, etc. might need some time to delete
             try:
@@ -76,6 +77,7 @@ class _TestJobQueue(abc.ABC):
         if not success:
             raise RuntimeError("Could not create queue")
         yield base_queue
+        base_queue.delete()
 
     @pytest.fixture
     def job_filter(self) -> JobFilter:
@@ -180,9 +182,7 @@ class TestSQSQueue(_TestJobQueue):
     def base_queue(self, mock_aws_: bool) -> Generator[SQSJobQueue, Any, None]:
         context_manager = mock_aws if mock_aws_ else nullcontext
         with context_manager():
-            base_queue = SQSJobQueue(boto3.client("sqs", "eu-central-1"))
-            yield base_queue
-            base_queue.delete()
+            yield SQSJobQueue(boto3.client("sqs", "eu-central-1"))
 
 
 class _TestRDSQueue(_TestJobQueue, abc.ABC):
@@ -295,9 +295,7 @@ class TestRDSLocalQueue(_TestRDSQueue):
     def base_queue(
         self, tmpdir_factory: pytest.TempdirFactory
     ) -> Generator[RDSJobQueue, Any, None]:
-        base_queue = RDSJobQueue(f"sqlite:///{tmpdir_factory.mktemp('queue')}/local.db")
-        yield base_queue
-        base_queue.delete()
+        yield RDSJobQueue(f"sqlite:///{tmpdir_factory.mktemp('queue')}/local.db")
 
 
 @pytest.mark.aws
