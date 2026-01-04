@@ -11,6 +11,10 @@ router = APIRouter()
     "/_jobs",
     status_code=status.HTTP_201_CREATED,
     response_model=SubmittedJob,
+    responses={
+        201: {"description": "Job submitted successfully"},
+        400: {"description": "Invalid job data"},
+    },
     description="Submit a job to the queue (private internal endpoint).",
 )
 async def post_job(
