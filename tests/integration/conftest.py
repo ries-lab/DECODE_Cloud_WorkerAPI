@@ -3,7 +3,7 @@ from typing import Any, Generator, cast
 
 import pytest
 
-from tests.conftest import RDSTestingInstance, S3TestingBucket
+from tests.conftest import DatabaseTestingInstance, S3TestingBucket
 from workerfacing_api import settings
 from workerfacing_api.core.filesystem import FileSystem, LocalFilesystem, S3Filesystem
 from workerfacing_api.core.queue import RDSJobQueue
@@ -39,16 +39,16 @@ def internal_api_key_secret() -> str:
 )
 def env(
     request: pytest.FixtureRequest,
-    rds_testing_instance: RDSTestingInstance,
+    database_testing_instance: DatabaseTestingInstance,
     s3_testing_bucket: S3TestingBucket,
 ) -> Generator[str, Any, None]:
     env = cast(str, request.param)
     if env == "aws":
-        rds_testing_instance.create()
+        database_testing_instance.create()
         s3_testing_bucket.create()
     yield env
     if env == "aws":
-        rds_testing_instance.cleanup()
+        database_testing_instance.cleanup()
         s3_testing_bucket.cleanup()
 
 
@@ -92,7 +92,7 @@ def base_filesystem(
 @pytest.fixture(scope="session")
 def queue(
     env: str,
-    rds_testing_instance: RDSTestingInstance,
+    database_testing_instance: DatabaseTestingInstance,
     tmpdir_factory: pytest.TempdirFactory,
 ) -> Generator[RDSJobQueue, Any, None]:
     if env == "local":
@@ -100,7 +100,7 @@ def queue(
             f"sqlite:///{tmpdir_factory.mktemp('integration')}/local.db"
         )
     else:
-        queue = RDSJobQueue(rds_testing_instance.db_url)
+        queue = RDSJobQueue(database_testing_instance.db_url)
     queue.create(err_on_exists=True)
     yield queue
 

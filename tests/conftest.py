@@ -15,6 +15,8 @@ from workerfacing_api.crud import job_tracking
 
 TEST_BUCKET_PREFIX = "decode-cloud-worker-api-tests-"
 REGION_NAME: BucketLocationConstraintType = "eu-central-1"
+# True for Aurora clusters, False for RDS instances
+USE_AURORA_CLUSTERS = True
 
 
 @pytest.fixture(scope="session")
@@ -30,9 +32,10 @@ def patch_update_job(monkeypatch_module: pytest.MonkeyPatch) -> MagicMock:
     return mock_update_job
 
 
-class RDSTestingInstance:
+class DatabaseTestingInstance:
     def __init__(self, db_name: str):
         self.db_name = db_name
+        self.use_aurora = USE_AURORA_CLUSTERS
 
     def create(self) -> None:
         self.rds_client = boto3.client("rds", "eu-central-1")
@@ -103,39 +106,126 @@ class RDSTestingInstance:
     def create_db_url(self) -> str:
         user = "postgres"
         password = self.get_db_password()
-        try:
-            response = self.rds_client.describe_db_instances(
-                DBInstanceIdentifier=self.db_name
-            )
-        except self.rds_client.exceptions.DBInstanceNotFoundFault:
-            while True:
-                try:
-                    self.rds_client.create_db_instance(
-                        DBName=self.db_name,
-                        DBInstanceIdentifier=self.db_name,
-                        AllocatedStorage=20,
-                        DBInstanceClass="db.t4g.micro",
-                        Engine="postgres",
-                        MasterUsername=user,
-                        MasterUserPassword=password,
-                        DeletionProtection=False,
-                        BackupRetentionPeriod=0,
-                        MultiAZ=False,
-                        EnablePerformanceInsights=False,
+
+        if self.use_aurora:
+            # Aurora cluster mode
+            try:
+                response_cluster = self.rds_client.describe_db_clusters(
+                    DBClusterIdentifier=self.db_name
+                )
+            except self.rds_client.exceptions.DBClusterNotFoundFault:
+                while True:
+                    try:
+                        self.rds_client.create_db_cluster(
+                            DatabaseName=self.db_name,
+                            DBClusterIdentifier=self.db_name,
+                            Engine="aurora-postgresql",
+                            EngineMode="provisioned",
+                            ServerlessV2ScalingConfiguration={
+                                "MinCapacity": 0,
+                                "MaxCapacity": 1,
+                            },
+                            MasterUsername=user,
+                            MasterUserPassword=password,
+                            DeletionProtection=False,
+                            EnableCloudwatchLogsExports=[],
+                        )
+                        break
+                    except self.rds_client.exceptions.DBClusterAlreadyExistsFault:
+                        pass
+
+                max_wait_time = 600  # 10 minutes
+                start_time = time.time()
+                while True:
+                    if time.time() - start_time > max_wait_time:
+                        raise TimeoutError(
+                            f"Aurora cluster {self.db_name} did not become available within {max_wait_time} seconds"
+                        )
+                    response_cluster = self.rds_client.describe_db_clusters(
+                        DBClusterIdentifier=self.db_name
                     )
-                    break
-                except self.rds_client.exceptions.DBInstanceAlreadyExistsFault:
-                    pass
-            while True:
-                response = self.rds_client.describe_db_instances(
+                    assert len(response_cluster["DBClusters"]) == 1
+                    if response_cluster["DBClusters"][0]["Status"] == "available":
+                        break
+                    else:
+                        time.sleep(5)
+
+                instance_identifier = f"{self.db_name}-instance"
+                try:
+                    self.rds_client.describe_db_instances(
+                        DBInstanceIdentifier=instance_identifier
+                    )
+                except self.rds_client.exceptions.DBInstanceNotFoundFault:
+                    while True:
+                        try:
+                            self.rds_client.create_db_instance(
+                                DBInstanceIdentifier=instance_identifier,
+                                DBClusterIdentifier=self.db_name,
+                                DBInstanceClass="db.serverless",
+                                Engine="aurora-postgresql",
+                            )
+                            break
+                        except self.rds_client.exceptions.DBInstanceAlreadyExistsFault:
+                            pass
+                    max_wait_time = 600  # 10 minutes
+                    start_time = time.time()
+                    while True:
+                        if time.time() - start_time > max_wait_time:
+                            raise TimeoutError(
+                                f"Aurora instance {instance_identifier} did not become available within {max_wait_time} seconds"
+                            )
+                        response_instance = self.rds_client.describe_db_instances(
+                            DBInstanceIdentifier=instance_identifier
+                        )
+                        assert len(response_instance["DBInstances"]) == 1
+                        if (
+                            response_instance["DBInstances"][0]["DBInstanceStatus"]
+                            == "available"
+                        ):
+                            break
+                        time.sleep(5)
+
+            # Get the cluster endpoint
+            address = response_cluster["DBClusters"][0]["Endpoint"]
+        else:
+            # RDS instance mode
+            try:
+                response_instance = self.rds_client.describe_db_instances(
                     DBInstanceIdentifier=self.db_name
                 )
-                assert len(response["DBInstances"]) == 1
-                if response["DBInstances"][0]["DBInstanceStatus"] == "available":
-                    break
-                else:
-                    time.sleep(5)
-        address = response["DBInstances"][0]["Endpoint"]["Address"]
+            except self.rds_client.exceptions.DBInstanceNotFoundFault:
+                while True:
+                    try:
+                        self.rds_client.create_db_instance(
+                            DBName=self.db_name,
+                            DBInstanceIdentifier=self.db_name,
+                            AllocatedStorage=20,
+                            DBInstanceClass="db.t4g.micro",
+                            Engine="postgres",
+                            MasterUsername=user,
+                            MasterUserPassword=password,
+                            DeletionProtection=False,
+                            BackupRetentionPeriod=0,
+                            MultiAZ=False,
+                            EnablePerformanceInsights=False,
+                        )
+                        break
+                    except self.rds_client.exceptions.DBInstanceAlreadyExistsFault:
+                        pass
+                while True:
+                    response_instance = self.rds_client.describe_db_instances(
+                        DBInstanceIdentifier=self.db_name
+                    )
+                    assert len(response_instance["DBInstances"]) == 1
+                    if (
+                        response_instance["DBInstances"][0]["DBInstanceStatus"]
+                        == "available"
+                    ):
+                        break
+                    else:
+                        time.sleep(5)
+            address = response_instance["DBInstances"][0]["Endpoint"]["Address"]
+
         return f"postgresql://{user}:{password}@{address}:5432/{self.db_name}"
 
     def cleanup(self) -> None:
@@ -146,11 +236,37 @@ class RDSTestingInstance:
         # never used (AWS tests skipped)
         if not hasattr(self, "rds_client"):
             return
-        self.rds_client.delete_db_instance(
-            DBInstanceIdentifier=self.db_name,
-            SkipFinalSnapshot=True,
-            DeleteAutomatedBackups=True,
-        )
+
+        if self.use_aurora:
+            # Delete Aurora instance first, then cluster
+            instance_identifier = f"{self.db_name}-instance"
+            try:
+                self.rds_client.delete_db_instance(
+                    DBInstanceIdentifier=instance_identifier,
+                    SkipFinalSnapshot=True,
+                )
+                # Wait for instance deletion before deleting cluster
+                while True:
+                    try:
+                        self.rds_client.describe_db_instances(
+                            DBInstanceIdentifier=instance_identifier
+                        )
+                        time.sleep(5)
+                    except self.rds_client.exceptions.DBInstanceNotFoundFault:
+                        break
+            except self.rds_client.exceptions.DBInstanceNotFoundFault:
+                pass
+
+            self.rds_client.delete_db_cluster(
+                DBClusterIdentifier=self.db_name,
+                SkipFinalSnapshot=True,
+            )
+        else:
+            self.rds_client.delete_db_instance(
+                DBInstanceIdentifier=self.db_name,
+                SkipFinalSnapshot=True,
+                DeleteAutomatedBackups=True,
+            )
 
 
 class S3TestingBucket:
@@ -201,11 +317,12 @@ class S3TestingBucket:
 
 
 @pytest.fixture(scope="session")
-def rds_testing_instance() -> Generator[RDSTestingInstance, Any, None]:
-    # tests themselves must create the instance by calling instance.create();
-    # this way, if no test that needs the DB is run, no RDS instance is created
-    # instance.delete() only deletes the RDS instance if it was created
-    instance = RDSTestingInstance("decodecloudintegrationtestsworkerapi")
+def database_testing_instance() -> Generator[DatabaseTestingInstance, Any, None]:
+    # tests themselves must create the database by calling instance.create();
+    # this way, if no test that needs the DB is run, no database is created
+    # instance.delete() only deletes the database if it was created
+    # Uses Aurora clusters if USE_AURORA_CLUSTERS=True, RDS instances if False
+    instance = DatabaseTestingInstance("decodecloudintegrationtestsworkerapi")
     yield instance
     instance.delete()
 
