@@ -10,7 +10,7 @@ import boto3
 import pytest
 from moto import mock_aws
 
-from tests.conftest import RDSTestingInstance
+from tests.conftest import DatabaseTestingInstance
 from workerfacing_api.core.queue import (
     JobQueue,
     LocalJobQueue,
@@ -302,8 +302,8 @@ class TestRDSLocalQueue(_TestRDSQueue):
 class TestRDSAWSQueue(_TestRDSQueue):
     @pytest.fixture(scope="class")
     def base_queue(
-        self, rds_testing_instance: RDSTestingInstance
+        self, database_testing_instance: DatabaseTestingInstance
     ) -> Generator[RDSJobQueue, Any, None]:
-        rds_testing_instance.create()
-        yield RDSJobQueue(rds_testing_instance.db_url)
-        rds_testing_instance.cleanup()
+        database_testing_instance.create()
+        yield RDSJobQueue(database_testing_instance.db_url)
+        database_testing_instance.cleanup()

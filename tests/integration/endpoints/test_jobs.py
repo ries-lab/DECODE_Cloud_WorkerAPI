@@ -9,7 +9,7 @@ import pytest
 import requests
 from fastapi.testclient import TestClient
 
-from tests.conftest import RDSTestingInstance
+from tests.conftest import DatabaseTestingInstance
 from tests.integration.endpoints.conftest import EndpointParams, _TestEndpoint
 from workerfacing_api.core.filesystem import FileSystem, LocalFilesystem, S3Filesystem
 from workerfacing_api.core.queue import RDSJobQueue
@@ -65,12 +65,12 @@ class TestJobs(_TestEndpoint):
         self,
         queue: RDSJobQueue,
         env: str,
-        rds_testing_instance: RDSTestingInstance,
+        database_testing_instance: DatabaseTestingInstance,
     ) -> None:
         if env == "local":
             queue.delete()
         else:
-            rds_testing_instance.cleanup()
+            database_testing_instance.cleanup()
         queue.create()
 
     @pytest.fixture(scope="function")
