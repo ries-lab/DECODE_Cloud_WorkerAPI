@@ -150,16 +150,15 @@ class DatabaseTestingInstance:
                     else:
                         time.sleep(5)
 
-                instance_identifier = f"{self.db_name}-instance"
                 try:
                     self.rds_client.describe_db_instances(
-                        DBInstanceIdentifier=instance_identifier
+                        DBInstanceIdentifier=self.db_name
                     )
                 except self.rds_client.exceptions.DBInstanceNotFoundFault:
                     while True:
                         try:
                             self.rds_client.create_db_instance(
-                                DBInstanceIdentifier=instance_identifier,
+                                DBInstanceIdentifier=self.db_name,
                                 DBClusterIdentifier=self.db_name,
                                 DBInstanceClass="db.serverless",
                                 Engine="aurora-postgresql",
@@ -172,10 +171,10 @@ class DatabaseTestingInstance:
                     while True:
                         if time.time() - start_time > max_wait_time:
                             raise TimeoutError(
-                                f"Aurora instance {instance_identifier} did not become available within {max_wait_time} seconds"
+                                f"Aurora instance {self.db_name} did not become available within {max_wait_time} seconds"
                             )
                         response_instance = self.rds_client.describe_db_instances(
-                            DBInstanceIdentifier=instance_identifier
+                            DBInstanceIdentifier=self.db_name
                         )
                         assert len(response_instance["DBInstances"]) == 1
                         if (
