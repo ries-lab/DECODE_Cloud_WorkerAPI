@@ -5,11 +5,10 @@ import pytest
 
 from tests.conftest import RDSTestingInstance, S3TestingBucket
 from workerfacing_api import settings
+from workerfacing_api.core.auth import APIKeyDependency, GroupClaims
 from workerfacing_api.core.filesystem import FileSystem, LocalFilesystem, S3Filesystem
 from workerfacing_api.core.queue import RDSJobQueue
 from workerfacing_api.dependencies import (
-    APIKeyDependency,
-    GroupClaims,
     authorizer,
     current_user_dep,
     filesystem_dep,
