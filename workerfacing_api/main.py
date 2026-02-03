@@ -13,34 +13,41 @@ from workerfacing_api.endpoints import access, files, jobs, jobs_post
 queue = dependencies.queue_dep()
 
 
-async def find_failed_jobs() -> dict[str, int]:
-    print("Silent fails check: starting...")
-    try:
-        max_retries = settings.max_retries
-        timeout_failure = settings.timeout_failure
-        n_retry, n_fail = queue.handle_timeouts(max_retries, timeout_failure)
-        print(f"Silent fails check: {n_retry} re-queued, {n_fail} failed.")
-        return {"n_retry": n_retry, "n_fail": n_fail}
-    except Exception as e:
-        print(f"Silent fails check: failed with {e}")
-        return {"n_retry": 0, "n_fail": 0}
-
-
-async def repeat_find_failed_jobs() -> None:
+async def cron_handle_timeouts() -> dict[str, int]:
     while True:
-        await find_failed_jobs()
-        await asyncio.sleep(60)
+        await asyncio.sleep(300)  # every 5 minutes
+        print("Silent fails check: starting...")
+        try:
+            max_retries = settings.max_retries
+            timeout_failure = settings.timeout_failure
+            n_retry, n_fail = queue.handle_timeouts(max_retries, timeout_failure)
+            print(f"Silent fails check: {n_retry} re-queued, {n_fail} failed.")
+            return {"n_retry": n_retry, "n_fail": n_fail}
+        except Exception as e:
+            print(f"Silent fails check: failed with {e}")
+            return {"n_retry": 0, "n_fail": 0}
+
+
+async def cron_backup_database() -> bool:
+    while True:
+        await asyncio.sleep(3600)  # every hour
+        # Run backup in thread pool to avoid blocking event loop;
+        # Fine instead of making backup async since it runs infrequently.
+        if await asyncio.to_thread(queue.backup):
+            print("Backed up database.")
+            return True
+        return False
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    task = asyncio.create_task(repeat_find_failed_jobs())
+    task_failed_jobs = asyncio.create_task(cron_handle_timeouts())
+    task_backup = asyncio.create_task(cron_backup_database())
     yield
-    task.cancel()
-    try:
-        await task
-    except asyncio.CancelledError:
-        pass
+    task_failed_jobs.cancel()
+    task_backup.cancel()
+    if queue.backup():  # final backup on shutdown
+        print("Created final backup on shutdown.")
 
 
 workerfacing_app = FastAPI(openapi_tags=tags.tags_metadata, lifespan=lifespan)

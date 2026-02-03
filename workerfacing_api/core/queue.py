@@ -1,22 +1,27 @@
 import datetime
+import gzip
 import json
 import os
 import pickle
+import subprocess
+import tempfile
 import threading
 import time
 from abc import ABC, abstractmethod
+from contextlib import nullcontext
 from types import TracebackType
 from typing import Any, Type
 
 import botocore.exceptions
+from botocore.exceptions import ClientError
 from deprecated import deprecated
 from dict_hash import sha256
+from mypy_boto3_s3 import S3Client
 from mypy_boto3_sqs import SQSClient
 from sqlalchemy import create_engine, inspect, not_
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Query, Session
 
-from workerfacing_api import settings
 from workerfacing_api.crud import job_tracking
 from workerfacing_api.exceptions import JobDeletedException, JobNotAssignedException
 from workerfacing_api.schemas.queue_jobs import (
@@ -47,25 +52,6 @@ class UpdateLock:
         exc_tb: TracebackType | None,
     ) -> None:
         self.lock.release()
-
-
-class MockUpdateLock:
-    """
-    Mock context manager.
-    Used for RDSQueue on databases that are not SQLite,
-    since locking is already achieved via `with_for_update`.
-    """
-
-    def __enter__(self) -> None:
-        pass
-
-    def __exit__(
-        self,
-        exc_type: Type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
-    ) -> None:
-        pass
 
 
 class JobQueue(ABC):
@@ -332,26 +318,30 @@ class RDSJobQueue(JobQueue):
     Allows job tracking.
     """
 
-    def __init__(self, db_url: str, max_retries: int = 10, retry_wait: int = 60):
+    def __init__(
+        self,
+        db_url: str,
+        retry_different: bool = True,
+        connect_kwargs: dict[str, Any] | None = None,
+        locking_context: UpdateLock | None = None,
+    ):
         self.db_url = db_url
-        self.update_lock = (
-            UpdateLock() if self.db_url.startswith("sqlite") else MockUpdateLock()
-        )
-        self.engine = self._get_engine(self.db_url, max_retries, retry_wait)
+        self.retry_different = retry_different
+        self.update_lock = locking_context or nullcontext()
+        self.engine = self._get_engine(self.db_url, connect_kwargs or {})
         self.table_name = QueuedJob.__tablename__
 
-    def _get_engine(self, db_url: str, max_retries: int, retry_wait: int) -> Engine:
+    def _get_engine(
+        self,
+        db_url: str,
+        connect_kwargs: dict[str, Any],
+        retry_wait: int = 60,
+        max_retries: int = 10,
+    ) -> Engine:
         retries = 0
         while True:
             try:
-                engine = create_engine(
-                    db_url,
-                    connect_args=(
-                        {"check_same_thread": False}
-                        if db_url.startswith("sqlite")
-                        else {}
-                    ),
-                )
+                engine = create_engine(db_url, connect_args=connect_kwargs)
                 # Attempt to create a connection or perform any necessary operations
                 engine.connect()
                 return engine  # Connection successful
@@ -426,7 +416,7 @@ class RDSJobQueue(JobQueue):
                     (QueuedJob.gpu_mem <= filter.gpu_mem)
                     | (QueuedJob.gpu_mem.is_(None)),
                 )
-                if settings.retry_different:
+                if self.retry_different:
                     # only if worker did not already try running this job
                     query = query.filter(not_(QueuedJob.workers.contains(hostname)))
                 query = query.order_by(QueuedJob.priority.desc()).order_by(
@@ -570,3 +560,84 @@ class RDSJobQueue(JobQueue):
                     pass
             session.commit()
         return n_retry, n_failed
+
+    def backup(self) -> bool:
+        """Backup the database. To be implemented by subclasses if supported."""
+        return False
+
+
+class SQLiteRDSJobQueue(RDSJobQueue):
+    """SQLite-specific RDS job queue with optional S3 backup support.
+
+    Extends RDSJobQueue with specifics of SQLite databases.
+    Allows S3 backup and restore functionality.
+    """
+
+    BACKUP_KEY = "workerapi_sqlite_backup/backup.db.gz"
+
+    def __init__(
+        self,
+        db_url: str,
+        retry_different: bool = True,
+        s3_client: S3Client | None = None,
+        s3_bucket: str | None = None,
+    ):
+        if not db_url.startswith("sqlite:///"):
+            raise ValueError(f"SQLiteRDSJobQueue requires SQLite DB URL, got: {db_url}")
+        if not (s3_client is None == s3_bucket is None):
+            raise ValueError(
+                "Both s3_client and s3_bucket must be provided for S3 backup/restore, or both must be None."
+            )
+        self.s3_client = s3_client
+        self.s3_bucket = s3_bucket
+        self.db_url = db_url  # Needed for _restore_database
+        self._restore_database()
+        super().__init__(
+            db_url,
+            retry_different=retry_different,
+            connect_kwargs={"check_same_thread": False},
+            locking_context=UpdateLock(),
+        )
+
+    @property
+    def db_path(self) -> str:
+        return self.db_url[len("sqlite:///") :]
+
+    def backup(self) -> bool:
+        """Backup the SQLite database to S3."""
+        if not self.s3_bucket or not self.s3_client:
+            return False
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            tmp_backup_path = os.path.join(temp_dir, "backup.db")
+            tmp_gzip_path = os.path.join(temp_dir, "backup.db.gz")
+            backup_cmd = ["sqlite3", self.db_path, f".backup {tmp_backup_path}"]
+            subprocess.run(backup_cmd, text=True, check=True)
+            with open(tmp_backup_path, "rb") as f_in:
+                with gzip.open(tmp_gzip_path, "wb") as f_out:
+                    f_out.writelines(f_in)
+            self.s3_client.upload_file(tmp_gzip_path, self.s3_bucket, self.BACKUP_KEY)
+            return True
+
+    def _restore_database(self) -> bool:
+        """Restore the SQLite database from S3."""
+        if not self.s3_bucket or not self.s3_client:
+            return False
+
+        try:
+            self.s3_client.head_object(Bucket=self.s3_bucket, Key=self.BACKUP_KEY)
+        except ClientError as e:
+            if e.response["Error"]["Code"] == "404":
+                return False
+            raise
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            tmp_gzip_path = os.path.join(temp_dir, "backup.db.gz")
+            tmp_backup_path = os.path.join(temp_dir, "backup.db")
+            self.s3_client.download_file(self.s3_bucket, self.BACKUP_KEY, tmp_gzip_path)
+            with gzip.open(tmp_gzip_path, "rb") as f_in:
+                with open(tmp_backup_path, "wb") as f_out:
+                    f_out.write(f_in.read())
+            os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
+            os.rename(tmp_backup_path, self.db_path)
+            return True
