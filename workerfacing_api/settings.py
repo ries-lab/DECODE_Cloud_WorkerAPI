@@ -12,6 +12,11 @@ def get_secret_from_env(secret_name: str) -> str | None:
     return secret
 
 
+# Cron job intervals
+cron_timeout_check_interval = 300  # 5 minutes
+cron_backup_interval = 3600  # 1 hour
+
+
 # Data
 filesystem = os.environ.get("FILESYSTEM")  # filesystem
 s3_bucket = os.environ.get("S3_BUCKET")

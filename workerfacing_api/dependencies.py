@@ -30,7 +30,6 @@ if queue_db_url.startswith("sqlite"):
     )
 else:
     queue_ = queue.RDSJobQueue(db_url=queue_db_url, retry_different=retry_different)
-queue_.create(err_on_exists=False)
 
 
 def queue_dep() -> queue.RDSJobQueue:

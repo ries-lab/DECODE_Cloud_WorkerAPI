@@ -8,41 +8,41 @@ from fastapi import Depends, FastAPI
 dotenv.load_dotenv()
 
 from workerfacing_api import dependencies, settings, tags
+from workerfacing_api.core.queue import RDSJobQueue
 from workerfacing_api.endpoints import access, files, jobs, jobs_post
 
-queue = dependencies.queue_dep()
 
-
-async def cron_handle_timeouts() -> dict[str, int]:
+async def cron_handle_timeouts(queue: RDSJobQueue) -> None:
     while True:
-        await asyncio.sleep(300)  # every 5 minutes
+        await asyncio.sleep(settings.cron_timeout_check_interval)
         print("Silent fails check: starting...")
         try:
             max_retries = settings.max_retries
             timeout_failure = settings.timeout_failure
             n_retry, n_fail = queue.handle_timeouts(max_retries, timeout_failure)
             print(f"Silent fails check: {n_retry} re-queued, {n_fail} failed.")
-            return {"n_retry": n_retry, "n_fail": n_fail}
         except Exception as e:
             print(f"Silent fails check: failed with {e}")
-            return {"n_retry": 0, "n_fail": 0}
 
 
-async def cron_backup_database() -> bool:
+async def cron_backup_database(queue: RDSJobQueue) -> None:
     while True:
-        await asyncio.sleep(3600)  # every hour
+        await asyncio.sleep(settings.cron_backup_interval)
         # Run backup in thread pool to avoid blocking event loop;
         # Fine instead of making backup async since it runs infrequently.
         if await asyncio.to_thread(queue.backup):
             print("Backed up database.")
-            return True
-        return False
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    task_failed_jobs = asyncio.create_task(cron_handle_timeouts())
-    task_backup = asyncio.create_task(cron_backup_database())
+    queue = app.dependency_overrides.get(
+        dependencies.queue_dep, dependencies.queue_dep
+    )()
+    assert isinstance(queue, RDSJobQueue)
+    queue.create()
+    task_failed_jobs = asyncio.create_task(cron_handle_timeouts(queue))
+    task_backup = asyncio.create_task(cron_backup_database(queue))
     yield
     task_failed_jobs.cancel()
     task_backup.cancel()

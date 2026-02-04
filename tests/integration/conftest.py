@@ -1,13 +1,14 @@
+import datetime
 import shutil
-from typing import Any, Generator, cast
+from typing import Generator, cast
 
 import pytest
+from mypy_boto3_s3 import S3Client
 
 from tests.conftest import RDSTestingInstance, S3TestingBucket
-from workerfacing_api import settings
 from workerfacing_api.core.auth import APIKeyDependency, GroupClaims
 from workerfacing_api.core.filesystem import FileSystem, LocalFilesystem, S3Filesystem
-from workerfacing_api.core.queue import RDSJobQueue
+from workerfacing_api.core.queue import RDSJobQueue, SQLiteRDSJobQueue
 from workerfacing_api.dependencies import (
     authorizer,
     current_user_dep,
@@ -15,6 +16,16 @@ from workerfacing_api.dependencies import (
     queue_dep,
 )
 from workerfacing_api.main import workerfacing_app
+from workerfacing_api.schemas.queue_jobs import (
+    AppSpecs,
+    EnvironmentTypes,
+    HandlerSpecs,
+    HardwareSpecs,
+    JobSpecs,
+    MetaSpecs,
+    PathsUploadSpecs,
+    SubmittedJob,
+)
 
 
 @pytest.fixture(scope="session")
@@ -23,8 +34,8 @@ def test_username() -> str:
 
 
 @pytest.fixture(scope="session")
-def base_dir() -> str:
-    return "int_test_dir"
+def base_dir(tmp_path_factory: pytest.TempPathFactory) -> str:
+    return str(tmp_path_factory.mktemp("int_test_dir"))
 
 
 @pytest.fixture(scope="session")
@@ -34,99 +45,92 @@ def internal_api_key_secret() -> str:
 
 @pytest.fixture(
     scope="session",
-    params=["local", pytest.param("aws", marks=pytest.mark.aws)],
+    params=["local-fs", pytest.param("aws-fs", marks=pytest.mark.aws)],
 )
-def env(
-    request: pytest.FixtureRequest,
-    rds_testing_instance: RDSTestingInstance,
-    s3_testing_bucket: S3TestingBucket,
-) -> Generator[str, Any, None]:
-    env = cast(str, request.param)
-    if env == "aws":
-        rds_testing_instance.create()
-        s3_testing_bucket.create()
-    yield env
-    if env == "aws":
-        rds_testing_instance.cleanup()
-        s3_testing_bucket.cleanup()
-
-
-@pytest.fixture(scope="session")
 def base_filesystem(
-    env: str,
     base_dir: str,
-    monkeypatch_module: pytest.MonkeyPatch,
     s3_testing_bucket: S3TestingBucket,
-) -> Generator[FileSystem, Any, None]:
-    monkeypatch_module.setattr(
-        settings,
-        "user_data_root_path",
-        base_dir,
-    )
-    monkeypatch_module.setattr(
-        settings,
-        "filesystem",
-        "local" if env == "local" else "s3",
-    )
-
-    if env == "local":
-        shutil.rmtree(base_dir, ignore_errors=True)
-        yield LocalFilesystem(base_dir, base_dir)
-        shutil.rmtree(base_dir, ignore_errors=True)
-
-    elif env == "aws":
-        # Update settings to use the actual unique bucket name created by S3TestingBucket
-        monkeypatch_module.setattr(
-            settings,
-            "s3_bucket",
-            s3_testing_bucket.bucket_name,
-        )
-        yield S3Filesystem(s3_testing_bucket.s3_client, s3_testing_bucket.bucket_name)
-        s3_testing_bucket.cleanup()
-
+    request: pytest.FixtureRequest,
+) -> FileSystem:
+    if request.param == "local-fs":
+        return LocalFilesystem(base_dir, base_dir)
+    elif request.param == "aws-fs":
+        s3_testing_bucket.create()
+        return S3Filesystem(s3_testing_bucket.s3_client, s3_testing_bucket.bucket_name)
     else:
         raise NotImplementedError
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(
+    scope="session",
+    params=["local-queue", pytest.param("aws-queue", marks=pytest.mark.aws)],
+)
 def queue(
-    env: str,
+    base_filesystem: FileSystem,
     rds_testing_instance: RDSTestingInstance,
     tmpdir_factory: pytest.TempdirFactory,
-) -> Generator[RDSJobQueue, Any, None]:
-    if env == "local":
-        queue = RDSJobQueue(
-            f"sqlite:///{tmpdir_factory.mktemp('integration')}/local.db"
+    request: pytest.FixtureRequest,
+) -> RDSJobQueue:
+    retry_different = False  # allow retries on same worker
+    if request.param == "local-queue":
+        queue_path = tmpdir_factory.mktemp("integration") / "local.db"
+        s3_bucket: str | None = None
+        s3_client: S3Client | None = None
+        if isinstance(base_filesystem, S3Filesystem):
+            s3_bucket = base_filesystem.bucket
+            s3_client = base_filesystem.s3_client
+        return SQLiteRDSJobQueue(
+            f"sqlite:///{queue_path}",
+            retry_different=retry_different,
+            s3_client=s3_client,
+            s3_bucket=s3_bucket,
         )
+    elif request.param == "aws-queue":
+        rds_testing_instance.create()
+        return RDSJobQueue(rds_testing_instance.db_url, retry_different=retry_different)
     else:
-        queue = RDSJobQueue(rds_testing_instance.db_url)
-    queue.create(err_on_exists=True)
-    yield queue
+        raise NotImplementedError
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(autouse=True)
 def override_filesystem_dep(
-    base_filesystem: FileSystem, monkeypatch_module: pytest.MonkeyPatch
-) -> None:
+    base_filesystem: FileSystem,
+    s3_testing_bucket: S3TestingBucket,
+    base_dir: str,
+    monkeypatch_module: pytest.MonkeyPatch,
+) -> Generator[None, None, None]:
     monkeypatch_module.setitem(
         workerfacing_app.dependency_overrides,  # type: ignore
         filesystem_dep,
         lambda: base_filesystem,
     )
+    yield
+    # cleanup after every test
+    if isinstance(base_filesystem, S3Filesystem):
+        s3_testing_bucket.cleanup()
+    else:
+        shutil.rmtree(base_dir, ignore_errors=True)
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(autouse=True)
 def override_queue_dep(
-    queue: RDSJobQueue, monkeypatch_module: pytest.MonkeyPatch
-) -> None:
+    queue: RDSJobQueue,
+    rds_testing_instance: RDSTestingInstance,
+    monkeypatch_module: pytest.MonkeyPatch,
+) -> Generator[None, None, None]:
     monkeypatch_module.setitem(
         workerfacing_app.dependency_overrides,  # type: ignore
         queue_dep,
         lambda: queue,
     )
+    yield
+    if isinstance(queue, SQLiteRDSJobQueue):
+        queue.delete()
+    else:
+        rds_testing_instance.cleanup()
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(autouse=True)
 def override_auth(monkeypatch_module: pytest.MonkeyPatch, test_username: str) -> None:
     monkeypatch_module.setitem(
         workerfacing_app.dependency_overrides,  # type: ignore
@@ -141,7 +145,7 @@ def override_auth(monkeypatch_module: pytest.MonkeyPatch, test_username: str) ->
     )
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(autouse=True)
 def override_internal_api_key_secret(
     monkeypatch_module: pytest.MonkeyPatch, internal_api_key_secret: str
 ) -> str:
@@ -151,3 +155,32 @@ def override_internal_api_key_secret(
         APIKeyDependency(internal_api_key_secret),
     )
     return internal_api_key_secret
+
+
+@pytest.fixture
+def base_job(base_filesystem: FileSystem, test_username: str) -> SubmittedJob:
+    time_now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    if isinstance(base_filesystem, S3Filesystem):
+        base_path = f"s3://{base_filesystem.bucket}"
+    else:
+        base_path = cast(LocalFilesystem, base_filesystem).base_post_path
+    paths_upload = PathsUploadSpecs(
+        output=f"{base_path}/{test_username}/test_out/1",
+        log=f"{base_path}/{test_username}/test_log/1",
+        artifact=f"{base_path}/{test_username}/test_arti/1",
+    )
+    return SubmittedJob(
+        job=JobSpecs(
+            app=AppSpecs(cmd=["cmd"], env={"env": "var"}),
+            handler=HandlerSpecs(image_url="u", files_up={"output": "out"}),
+            hardware=HardwareSpecs(),
+            meta=MetaSpecs(
+                job_id=1,
+                date_created=time_now,
+            ),
+        ),
+        environment=EnvironmentTypes.local,
+        group=None,
+        priority=1,
+        paths_upload=paths_upload,
+    )

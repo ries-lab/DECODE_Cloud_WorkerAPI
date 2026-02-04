@@ -12,10 +12,8 @@ client = TestClient(workerfacing_app)
 endpoint = "/_jobs"
 
 
-@pytest.fixture(scope="function")
-def queue_enqueue(
-    monkeypatch_module: pytest.MonkeyPatch,
-) -> MagicMock:
+@pytest.fixture
+def queue_enqueue(monkeypatch_module: pytest.MonkeyPatch) -> MagicMock:
     queue = MagicMock()
     queue.enqueue = MagicMock()
     monkeypatch_module.setitem(
@@ -26,7 +24,7 @@ def queue_enqueue(
     return queue.enqueue
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
 def queue_job() -> dict[str, Any]:
     return {
         "job": {

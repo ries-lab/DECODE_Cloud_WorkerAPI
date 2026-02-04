@@ -1,4 +1,3 @@
-import datetime
 import os
 import time
 from io import BytesIO
@@ -9,90 +8,21 @@ import pytest
 import requests
 from fastapi.testclient import TestClient
 
-from tests.conftest import RDSTestingInstance
 from tests.integration.endpoints.conftest import EndpointParams, _TestEndpoint
 from workerfacing_api.core.filesystem import FileSystem, LocalFilesystem, S3Filesystem
-from workerfacing_api.core.queue import RDSJobQueue
+from workerfacing_api.core.queue import RDSJobQueue, SQLiteRDSJobQueue
 from workerfacing_api.crud import job_tracking
 from workerfacing_api.exceptions import JobDeletedException
-from workerfacing_api.schemas.queue_jobs import (
-    AppSpecs,
-    EnvironmentTypes,
-    HandlerSpecs,
-    HardwareSpecs,
-    JobSpecs,
-    MetaSpecs,
-    PathsUploadSpecs,
-    SubmittedJob,
-)
+from workerfacing_api.schemas.queue_jobs import EnvironmentTypes, SubmittedJob
 from workerfacing_api.schemas.rds_models import JobStates
-
-
-@pytest.fixture(scope="session")
-def app() -> AppSpecs:
-    return AppSpecs(cmd=["cmd"], env={"env": "var"})
-
-
-@pytest.fixture(scope="session")
-def handler() -> HandlerSpecs:
-    return HandlerSpecs(image_url="u", files_up={"output": "out"})
-
-
-@pytest.fixture(scope="session")
-def paths_upload(
-    env: str, test_username: str, base_filesystem: FileSystem
-) -> PathsUploadSpecs:
-    if env == "local":
-        base_path = cast(LocalFilesystem, base_filesystem).base_post_path
-    else:
-        base_path = f"s3://{cast(S3Filesystem, base_filesystem).bucket}"
-    return PathsUploadSpecs(
-        output=f"{base_path}/{test_username}/test_out/1",
-        log=f"{base_path}/{test_username}/test_log/1",
-        artifact=f"{base_path}/{test_username}/test_arti/1",
-    )
 
 
 class TestJobs(_TestEndpoint):
     endpoint = "/jobs"
 
-    @pytest.fixture(scope="session")
+    @pytest.fixture
     def passing_params(self) -> list[EndpointParams]:
         return [EndpointParams("get", params={"memory": 1})]
-
-    @pytest.fixture(scope="function", autouse=True)
-    def cleanup_queue(
-        self,
-        queue: RDSJobQueue,
-        env: str,
-        rds_testing_instance: RDSTestingInstance,
-    ) -> None:
-        if env == "local":
-            queue.delete()
-        else:
-            rds_testing_instance.cleanup()
-        queue.create()
-
-    @pytest.fixture(scope="function")
-    def base_job(
-        self, app: AppSpecs, handler: HandlerSpecs, paths_upload: PathsUploadSpecs
-    ) -> SubmittedJob:
-        time_now = datetime.datetime.now(datetime.timezone.utc).isoformat()
-        return SubmittedJob(
-            job=JobSpecs(
-                app=app,
-                handler=handler,
-                hardware=HardwareSpecs(),
-                meta=MetaSpecs(
-                    job_id=1,
-                    date_created=time_now,
-                ),
-            ),
-            environment=EnvironmentTypes.local,
-            group=None,
-            priority=1,
-            paths_upload=paths_upload,
-        )
 
     def test_get_jobs(
         self,
@@ -295,7 +225,6 @@ class TestJobs(_TestEndpoint):
 
     def test_job_files_post(
         self,
-        env: str,
         queue: RDSJobQueue,
         base_filesystem: FileSystem,
         base_job: SubmittedJob,
@@ -309,7 +238,7 @@ class TestJobs(_TestEndpoint):
             params={"type": "output", "base_path": "test"},
         )
         assert res.status_code == 201
-        if env == "local":
+        if isinstance(queue, SQLiteRDSJobQueue):
             req_base = client
         else:
             req_base = requests  # type: ignore
@@ -324,8 +253,7 @@ class TestJobs(_TestEndpoint):
             },
         )
         res.raise_for_status()
-        if env == "local":
-            base_filesystem = cast(LocalFilesystem, base_filesystem)
+        if isinstance(base_filesystem, LocalFilesystem):
             assert os.path.exists(
                 f"{base_filesystem.base_post_path}/{test_username}/test_out/1/test/file.txt"
             )

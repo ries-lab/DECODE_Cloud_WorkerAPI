@@ -10,7 +10,7 @@ import time
 from abc import ABC, abstractmethod
 from contextlib import nullcontext
 from types import TracebackType
-from typing import Any, Type
+from typing import Any, Type, cast
 
 import botocore.exceptions
 from botocore.exceptions import ClientError
@@ -18,7 +18,7 @@ from deprecated import deprecated
 from dict_hash import sha256
 from mypy_boto3_s3 import S3Client
 from mypy_boto3_sqs import SQSClient
-from sqlalchemy import create_engine, inspect, not_
+from sqlalchemy import create_engine, not_
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Query, Session
 
@@ -58,7 +58,7 @@ class JobQueue(ABC):
     """Abstract multi-environment job queue."""
 
     @abstractmethod
-    def create(self, err_on_exists: bool = True) -> None:
+    def create(self) -> None:
         """Create the initialized queue."""
         raise NotImplementedError
 
@@ -122,9 +122,7 @@ class LocalJobQueue(JobQueue):
         self.queue_path = queue_path
         self.update_lock = UpdateLock()
 
-    def create(self, err_on_exists: bool = True) -> None:
-        if os.path.exists(self.queue_path) and err_on_exists:
-            raise ValueError("A queue at this path already exists.")
+    def create(self) -> None:
         queue: dict[EnvironmentTypes, list[SubmittedJob]] = {
             env: [] for env in EnvironmentTypes
         }
@@ -217,7 +215,7 @@ class SQSJobQueue(JobQueue):
             except self.sqs_client.exceptions.QueueDoesNotExist:
                 pass
 
-    def create(self, err_on_exists: bool = True) -> None:
+    def create(self) -> None:
         for environment, queue_name in self.queue_names.items():
             try:
                 res = self.sqs_client.create_queue(
@@ -230,10 +228,7 @@ class SQSJobQueue(JobQueue):
                 )
                 self.queue_urls[environment] = res["QueueUrl"]
             except self.sqs_client.exceptions.QueueNameExists:
-                if err_on_exists:
-                    raise ValueError(
-                        f"A queue with the name {queue_name} already exists."
-                    )
+                pass
 
     def delete(self) -> None:
         for queue_url in self.queue_urls.values():
@@ -328,33 +323,28 @@ class RDSJobQueue(JobQueue):
         self.db_url = db_url
         self.retry_different = retry_different
         self.update_lock = locking_context or nullcontext()
-        self.engine = self._get_engine(self.db_url, connect_kwargs or {})
+        self.connect_kwargs = connect_kwargs or {}
         self.table_name = QueuedJob.__tablename__
 
-    def _get_engine(
-        self,
-        db_url: str,
-        connect_kwargs: dict[str, Any],
-        retry_wait: int = 60,
-        max_retries: int = 10,
-    ) -> Engine:
+    @property
+    def engine(self) -> Engine:
+        if hasattr(self, "_engine"):
+            return cast(Engine, self._engine)  # type: ignore[has-type]
         retries = 0
         while True:
             try:
-                engine = create_engine(db_url, connect_args=connect_kwargs)
+                engine = create_engine(self.db_url, connect_args=self.connect_kwargs)
                 # Attempt to create a connection or perform any necessary operations
                 engine.connect()
+                self._engine = engine
                 return engine  # Connection successful
             except Exception as e:
-                if retries >= max_retries:
+                if retries >= 10:
                     raise RuntimeError(f"Could not create engine: {str(e)}")
                 retries += 1
-                time.sleep(retry_wait)
+                time.sleep(60)
 
-    def create(self, err_on_exists: bool = True) -> None:
-        inspector = inspect(self.engine)
-        if inspector.has_table(self.table_name) and err_on_exists:
-            raise ValueError(f"A table with the name {self.table_name} already exists.")
+    def create(self) -> None:
         Base.metadata.create_all(self.engine)
 
     def delete(self) -> None:
@@ -584,20 +574,22 @@ class SQLiteRDSJobQueue(RDSJobQueue):
     ):
         if not db_url.startswith("sqlite:///"):
             raise ValueError(f"SQLiteRDSJobQueue requires SQLite DB URL, got: {db_url}")
-        if not (s3_client is None == s3_bucket is None):
+        if not ((s3_client is None) == (s3_bucket is None)):
             raise ValueError(
                 "Both s3_client and s3_bucket must be provided for S3 backup/restore, or both must be None."
             )
         self.s3_client = s3_client
         self.s3_bucket = s3_bucket
-        self.db_url = db_url  # Needed for _restore_database
-        self._restore_database()
         super().__init__(
             db_url,
             retry_different=retry_different,
             connect_kwargs={"check_same_thread": False},
             locking_context=UpdateLock(),
         )
+
+    def create(self) -> None:
+        self._restore_database()
+        super().create()
 
     @property
     def db_path(self) -> str:

@@ -69,7 +69,7 @@ class _TestJobQueue(abc.ABC):
         success = False
         for _ in range(10):  # i.p. SQS, RDS, etc. might need some time to delete
             try:
-                base_queue.create(err_on_exists=True)
+                base_queue.create()
                 success = True
                 break
             except Exception:
