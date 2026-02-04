@@ -17,16 +17,10 @@ TEST_BUCKET_PREFIX = "decode-cloud-worker-api-tests-"
 REGION_NAME: BucketLocationConstraintType = "eu-central-1"
 
 
-@pytest.fixture(scope="session")
-def monkeypatch_module() -> Generator[pytest.MonkeyPatch, Any, None]:
-    with pytest.MonkeyPatch.context() as mp:
-        yield mp
-
-
-@pytest.fixture(autouse=True, scope="session")
-def patch_update_job(monkeypatch_module: pytest.MonkeyPatch) -> MagicMock:
+@pytest.fixture(autouse=True)
+def patch_update_job(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     mock_update_job = MagicMock()
-    monkeypatch_module.setattr(job_tracking, "update_job", mock_update_job)
+    monkeypatch.setattr(job_tracking, "update_job", mock_update_job)
     return mock_update_job
 
 

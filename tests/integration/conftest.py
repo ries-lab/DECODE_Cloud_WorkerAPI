@@ -98,9 +98,9 @@ def override_filesystem_dep(
     base_filesystem: FileSystem,
     s3_testing_bucket: S3TestingBucket,
     base_dir: str,
-    monkeypatch_module: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> Generator[None, None, None]:
-    monkeypatch_module.setitem(
+    monkeypatch.setitem(
         workerfacing_app.dependency_overrides,  # type: ignore
         filesystem_dep,
         lambda: base_filesystem,
@@ -117,9 +117,9 @@ def override_filesystem_dep(
 def override_queue_dep(
     queue: RDSJobQueue,
     rds_testing_instance: RDSTestingInstance,
-    monkeypatch_module: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> Generator[None, None, None]:
-    monkeypatch_module.setitem(
+    monkeypatch.setitem(
         workerfacing_app.dependency_overrides,  # type: ignore
         queue_dep,
         lambda: queue,
@@ -132,8 +132,8 @@ def override_queue_dep(
 
 
 @pytest.fixture(autouse=True)
-def override_auth(monkeypatch_module: pytest.MonkeyPatch, test_username: str) -> None:
-    monkeypatch_module.setitem(
+def override_auth(monkeypatch: pytest.MonkeyPatch, test_username: str) -> None:
+    monkeypatch.setitem(
         workerfacing_app.dependency_overrides,  # type: ignore
         current_user_dep,
         lambda: GroupClaims(
@@ -148,9 +148,9 @@ def override_auth(monkeypatch_module: pytest.MonkeyPatch, test_username: str) ->
 
 @pytest.fixture(autouse=True)
 def override_internal_api_key_secret(
-    monkeypatch_module: pytest.MonkeyPatch, internal_api_key_secret: str
+    monkeypatch: pytest.MonkeyPatch, internal_api_key_secret: str
 ) -> str:
-    monkeypatch_module.setitem(
+    monkeypatch.setitem(
         workerfacing_app.dependency_overrides,  # type: ignore
         authorizer,
         APIKeyDependency(internal_api_key_secret),

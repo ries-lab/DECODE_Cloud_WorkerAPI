@@ -24,19 +24,19 @@ def client() -> TestClient:
 
 class TestCronHandleTimeouts:
     @pytest.fixture(autouse=True)
-    def setup_timeout_failure(self, monkeypatch_module: pytest.MonkeyPatch) -> None:
+    def setup_timeout_failure(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Set timeout_failure to 2 seconds for faster testing."""
-        monkeypatch_module.setattr(settings, "timeout_failure", 2)
+        monkeypatch.setattr(settings, "timeout_failure", 2)
 
     @pytest.fixture(autouse=True)
-    def setup_max_retries(self, monkeypatch_module: pytest.MonkeyPatch) -> None:
+    def setup_max_retries(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Set max retries to 1 for faster testing."""
-        monkeypatch_module.setattr(settings, "max_retries", 1)
+        monkeypatch.setattr(settings, "max_retries", 1)
 
     @pytest.fixture(autouse=True)
-    def setup_cron_interval(self, monkeypatch_module: pytest.MonkeyPatch) -> None:
+    def setup_cron_interval(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Set cron interval to 1 second for faster testing."""
-        monkeypatch_module.setattr(settings, "cron_timeout_check_interval", 1)
+        monkeypatch.setattr(settings, "cron_timeout_check_interval", 1)
 
     def test_handle_timeouts(
         self,
@@ -90,11 +90,9 @@ class TestCronBackupDatabase:
             pytest.skip("Backup tests only run with SQLite queue and S3 filesystem")
 
     @pytest.fixture(autouse=True)
-    def setup_backup_cron_interval(
-        self, monkeypatch_module: pytest.MonkeyPatch
-    ) -> None:
+    def setup_backup_cron_interval(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Set backup cron interval to 1 seconds for faster testing."""
-        monkeypatch_module.setattr(settings, "cron_backup_interval", 1)
+        monkeypatch.setattr(settings, "cron_backup_interval", 1)
 
     def get_backup_nrows(self, s3_testing_bucket: S3TestingBucket) -> int:
         """Helper to get number of rows in backup database."""
@@ -121,7 +119,7 @@ class TestCronBackupDatabase:
         client: TestClient,
         s3_testing_bucket: S3TestingBucket,
         tmpdir_factory: pytest.TempdirFactory,
-        monkeypatch_module: pytest.MonkeyPatch,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test the backup and restore functionality of the SQLiteRDSJobQueue."""
         # Startup: no backup present
@@ -151,7 +149,7 @@ class TestCronBackupDatabase:
             s3_client=s3_testing_bucket.s3_client,
             s3_bucket=s3_testing_bucket.bucket_name,
         )
-        monkeypatch_module.setitem(
+        monkeypatch.setitem(
             workerfacing_app.dependency_overrides,  # type: ignore
             queue_dep,
             lambda: new_queue,
