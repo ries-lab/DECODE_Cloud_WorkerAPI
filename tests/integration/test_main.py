@@ -25,8 +25,8 @@ def client() -> TestClient:
 class TestCronHandleTimeouts:
     @pytest.fixture(autouse=True)
     def setup_timeout_failure(self, monkeypatch_module: pytest.MonkeyPatch) -> None:
-        """Set timeout_failure to 1 second for faster testing."""
-        monkeypatch_module.setattr(settings, "timeout_failure", 1)
+        """Set timeout_failure to 2 seconds for faster testing."""
+        monkeypatch_module.setattr(settings, "timeout_failure", 2)
 
     @pytest.fixture(autouse=True)
     def setup_max_retries(self, monkeypatch_module: pytest.MonkeyPatch) -> None:
@@ -74,7 +74,7 @@ class TestCronHandleTimeouts:
             assert queue.get_job(job_id).num_retries == 1
 
             # Let timeout and fail
-            time.sleep(2)
+            time.sleep(4)
             assert queue.get_job(job_id).status == JobStates.error.value
 
 
@@ -104,7 +104,7 @@ class TestCronBackupDatabase:
         )
         backup_data_gzip = response["Body"].read()
         backup_data = gzip.decompress(backup_data_gzip)
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".db") as tmp_file:
+        with tempfile.NamedTemporaryFile(suffix=".db") as tmp_file:
             tmp_file.write(backup_data)
             tmp_path = tmp_file.name
             conn = sqlite3.connect(tmp_path)

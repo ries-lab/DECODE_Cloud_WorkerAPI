@@ -67,6 +67,7 @@ def base_filesystem(
 )
 def queue(
     base_filesystem: FileSystem,
+    s3_testing_bucket: S3TestingBucket,
     rds_testing_instance: RDSTestingInstance,
     tmpdir_factory: pytest.TempdirFactory,
     request: pytest.FixtureRequest,
@@ -77,8 +78,8 @@ def queue(
         s3_bucket: str | None = None
         s3_client: S3Client | None = None
         if isinstance(base_filesystem, S3Filesystem):
-            s3_bucket = base_filesystem.bucket
-            s3_client = base_filesystem.s3_client
+            s3_bucket = s3_testing_bucket.bucket_name
+            s3_client = s3_testing_bucket.s3_client
         return SQLiteRDSJobQueue(
             f"sqlite:///{queue_path}",
             retry_different=retry_different,
