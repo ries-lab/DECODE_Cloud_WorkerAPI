@@ -17,7 +17,6 @@ from workerfacing_api.endpoints import access, files, jobs, jobs_post
 
 async def cron_handle_timeouts(queue: RDSJobQueue) -> None:
     while True:
-        await asyncio.sleep(settings.cron_timeout_check_interval)
         logger.info("Silent fails check: starting...")
         try:
             max_retries = settings.max_retries
@@ -26,11 +25,11 @@ async def cron_handle_timeouts(queue: RDSJobQueue) -> None:
             logger.info(f"Silent fails check: {n_retry} re-queued, {n_fail} failed.")
         except Exception as e:
             logger.error(f"Silent fails check: failed with {e}")
+        await asyncio.sleep(settings.cron_timeout_check_interval)
 
 
 async def cron_backup_database(queue: RDSJobQueue) -> None:
     while True:
-        await asyncio.sleep(settings.cron_backup_interval)
         logger.info("Database backup: starting...")
         # Run backup in thread pool to avoid blocking event loop;
         # Fine instead of making backup async since it runs infrequently.
@@ -39,6 +38,7 @@ async def cron_backup_database(queue: RDSJobQueue) -> None:
                 logger.info("Backed up database.")
         except Exception as e:
             logger.error(f"Database backup failed with {e}")
+        await asyncio.sleep(settings.cron_backup_interval)
 
 
 @asynccontextmanager

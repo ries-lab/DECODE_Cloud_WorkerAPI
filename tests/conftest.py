@@ -34,7 +34,7 @@ class RDSTestingInstance:
         self.add_ingress_rule()
         self.db_url = self.create_db_url()
         self.engine = self.get_engine()
-        self.delete_db_tables()
+        self.cleanup()
 
     def get_engine(self) -> Engine:
         for _ in range(5):
@@ -73,7 +73,7 @@ class RDSTestingInstance:
             else:
                 raise e
 
-    def delete_db_tables(self) -> None:
+    def cleanup(self) -> None:
         metadata = MetaData()
         engine = self.engine
         metadata.reflect(engine)
@@ -132,14 +132,11 @@ class RDSTestingInstance:
         address = response["DBInstances"][0]["Endpoint"]["Address"]
         return f"postgresql://{user}:{password}@{address}:5432/{self.db_name}"
 
-    def cleanup(self) -> None:
-        self.delete_db_tables()
-        self.ec2_client.revoke_security_group_ingress(**self.vpc_sg_rule_params)
-
     def delete(self) -> None:
         # never used (AWS tests skipped)
         if not hasattr(self, "rds_client"):
             return
+        self.ec2_client.revoke_security_group_ingress(**self.vpc_sg_rule_params)
         self.rds_client.delete_db_instance(
             DBInstanceIdentifier=self.db_name,
             SkipFinalSnapshot=True,
