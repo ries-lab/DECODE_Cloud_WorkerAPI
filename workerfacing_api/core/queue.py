@@ -606,7 +606,7 @@ class SQLiteRDSJobQueue(RDSJobQueue):
             with sqlite3.connect(self.db_path) as source_conn:
                 with sqlite3.connect(tmp_backup_path) as backup_conn:
                     source_conn.backup(backup_conn)
-            
+
             with open(tmp_backup_path, "rb") as f_in:
                 with gzip.open(tmp_gzip_path, "wb") as f_out:
                     f_out.writelines(f_in)
