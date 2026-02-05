@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 
 from tests.integration.endpoints.conftest import EndpointParams, _TestEndpoint
 from workerfacing_api.core.filesystem import FileSystem, LocalFilesystem, S3Filesystem
-from workerfacing_api.core.queue import RDSJobQueue, SQLiteRDSJobQueue
+from workerfacing_api.core.queue import RDSJobQueue
 from workerfacing_api.crud import job_tracking
 from workerfacing_api.exceptions import JobDeletedException
 from workerfacing_api.schemas.queue_jobs import EnvironmentTypes, SubmittedJob
@@ -238,7 +238,7 @@ class TestJobs(_TestEndpoint):
             params={"type": "output", "base_path": "test"},
         )
         assert res.status_code == 201
-        if isinstance(queue, SQLiteRDSJobQueue):
+        if isinstance(base_filesystem, LocalFilesystem):
             req_base = client
         else:
             req_base = requests  # type: ignore
