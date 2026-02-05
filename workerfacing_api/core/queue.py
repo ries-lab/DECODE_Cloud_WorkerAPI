@@ -605,11 +605,9 @@ class SQLiteRDSJobQueue(RDSJobQueue):
             tmp_gzip_path = os.path.join(temp_dir, "backup.db.gz")
             
             # Use Python's sqlite3 backup API instead of command-line tool
-            source_conn = sqlite3.connect(self.db_path)
-            backup_conn = sqlite3.connect(tmp_backup_path)
-            source_conn.backup(backup_conn)
-            backup_conn.close()
-            source_conn.close()
+            with sqlite3.connect(self.db_path) as source_conn:
+                with sqlite3.connect(tmp_backup_path) as backup_conn:
+                    source_conn.backup(backup_conn)
             
             with open(tmp_backup_path, "rb") as f_in:
                 with gzip.open(tmp_gzip_path, "wb") as f_out:
