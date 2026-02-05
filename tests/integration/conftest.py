@@ -87,6 +87,8 @@ def queue(
             s3_bucket=s3_bucket,
         )
     elif request.param == "aws-queue":
+        if isinstance(base_filesystem, LocalFilesystem):
+            pytest.skip("Only testing RDS queue in combination with S3 filesystem")
         rds_testing_instance.create()
         return RDSJobQueue(rds_testing_instance.db_url, retry_different=retry_different)
     else:

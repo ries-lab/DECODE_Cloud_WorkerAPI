@@ -41,12 +41,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )()
     assert isinstance(queue, RDSJobQueue)
     queue.create()
-    task_failed_jobs = asyncio.create_task(cron_handle_timeouts(queue))
-    task_backup = asyncio.create_task(cron_backup_database(queue))
-    yield
-    task_failed_jobs.cancel()
-    task_backup.cancel()
-    if queue.backup():  # final backup on shutdown
+    async with asyncio.TaskGroup() as tg:  # cancels and waits on exit
+        tg.create_task(cron_handle_timeouts(queue))
+        tg.create_task(cron_backup_database(queue))
+        yield
+    if queue.backup():
         print("Created final backup on shutdown.")
 
 
