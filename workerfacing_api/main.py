@@ -31,10 +31,14 @@ async def cron_handle_timeouts(queue: RDSJobQueue) -> None:
 async def cron_backup_database(queue: RDSJobQueue) -> None:
     while True:
         await asyncio.sleep(settings.cron_backup_interval)
+        logger.info("Database backup: starting...")
         # Run backup in thread pool to avoid blocking event loop;
         # Fine instead of making backup async since it runs infrequently.
-        if await asyncio.to_thread(queue.backup):
-            logger.info("Backed up database.")
+        try:
+            if await asyncio.to_thread(queue.backup):
+                logger.info("Backed up database.")
+        except Exception as e:
+            logger.error(f"Database backup failed with {e}")
 
 
 @asynccontextmanager
