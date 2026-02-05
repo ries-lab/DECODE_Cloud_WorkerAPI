@@ -3,7 +3,7 @@ import gzip
 import json
 import os
 import pickle
-import subprocess
+import sqlite3
 import tempfile
 import threading
 import time
@@ -603,8 +603,14 @@ class SQLiteRDSJobQueue(RDSJobQueue):
         with tempfile.TemporaryDirectory() as temp_dir:
             tmp_backup_path = os.path.join(temp_dir, "backup.db")
             tmp_gzip_path = os.path.join(temp_dir, "backup.db.gz")
-            backup_cmd = ["sqlite3", self.db_path, f".backup {tmp_backup_path}"]
-            subprocess.run(backup_cmd, text=True, check=True)
+            
+            # Use Python's sqlite3 backup API instead of command-line tool
+            source_conn = sqlite3.connect(self.db_path)
+            backup_conn = sqlite3.connect(tmp_backup_path)
+            source_conn.backup(backup_conn)
+            backup_conn.close()
+            source_conn.close()
+            
             with open(tmp_backup_path, "rb") as f_in:
                 with gzip.open(tmp_gzip_path, "wb") as f_out:
                     f_out.writelines(f_in)
