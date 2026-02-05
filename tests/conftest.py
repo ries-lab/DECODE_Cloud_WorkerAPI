@@ -8,6 +8,7 @@ import boto3
 import botocore.exceptions
 import pytest
 import requests
+from moto import mock_aws
 from mypy_boto3_s3.literals import BucketLocationConstraintType
 from sqlalchemy import Engine, MetaData, create_engine
 
@@ -15,6 +16,14 @@ from workerfacing_api.crud import job_tracking
 
 TEST_BUCKET_PREFIX = "decode-cloud-worker-api-tests-"
 REGION_NAME: BucketLocationConstraintType = "eu-central-1"
+
+
+# Apply moto AWS mock to all tests
+@pytest.fixture(scope="session", autouse=True)
+def _mock_aws() -> Generator[None, None, None]:
+    """Mock AWS services for all tests to avoid needing real AWS credentials."""
+    with mock_aws():
+        yield
 
 
 @pytest.fixture(autouse=True)
@@ -154,11 +163,13 @@ class S3TestingBucket:
         self.region_name: BucketLocationConstraintType = REGION_NAME
 
     def create(self) -> None:
+        # Use path-style addressing for better compatibility with moto
+        # This avoids virtual-hosted-style URLs that don't work well with presigned URLs in moto
+        from botocore.config import Config
         self.s3_client = boto3.client(
             "s3",
             region_name=self.region_name,
-            # required for pre-signing URLs to work
-            endpoint_url=f"https://s3.{self.region_name}.amazonaws.com",
+            config=Config(s3={"addressing_style": "path"}),
         )
         exists = self.cleanup()
         if not exists:
@@ -215,22 +226,26 @@ def s3_testing_bucket() -> Generator[S3TestingBucket, Any, None]:
     bucket.delete()
 
 
-@pytest.mark.aws
 @pytest.fixture(scope="session", autouse=True)
 def cleanup_old_test_buckets() -> None:
     """
     Find and delete all S3 buckets with the test prefix.
     This helps clean up buckets from previous test runs.
     """
-    s3_client = boto3.client("s3", region_name=REGION_NAME)
-    response = s3_client.list_buckets(Prefix=TEST_BUCKET_PREFIX)
-    for bucket in response["Buckets"]:
-        bucket_name = bucket["Name"]
-        s3 = boto3.resource("s3", region_name=REGION_NAME)
-        s3_bucket = s3.Bucket(bucket_name)
-        bucket_versioning = s3.BucketVersioning(bucket_name)
-        if bucket_versioning.status == "Enabled":
-            s3_bucket.object_versions.delete()
-        else:
-            s3_bucket.objects.all().delete()
-        s3_client.delete_bucket(Bucket=bucket_name)
+    try:
+        s3_client = boto3.client("s3", region_name=REGION_NAME)
+        response = s3_client.list_buckets()
+        for bucket in response.get("Buckets", []):
+            bucket_name = bucket["Name"]
+            if bucket_name.startswith(TEST_BUCKET_PREFIX):
+                s3 = boto3.resource("s3", region_name=REGION_NAME)
+                s3_bucket = s3.Bucket(bucket_name)
+                bucket_versioning = s3.BucketVersioning(bucket_name)
+                if bucket_versioning.status == "Enabled":
+                    s3_bucket.object_versions.delete()
+                else:
+                    s3_bucket.objects.all().delete()
+                s3_client.delete_bucket(Bucket=bucket_name)
+    except botocore.exceptions.NoCredentialsError:
+        # Skip cleanup if no AWS credentials are available
+        pass

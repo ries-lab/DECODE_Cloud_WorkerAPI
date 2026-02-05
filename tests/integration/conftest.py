@@ -1,9 +1,25 @@
 import datetime
 import shutil
 from typing import Generator, cast
+from unittest.mock import MagicMock, patch
 
 import pytest
 from mypy_boto3_s3 import S3Client
+
+# Patch fastapi_cloudauth.cognito.WorkerGroupCognitoCurrentUser to avoid Cognito initialization
+# This prevents attempting to connect to AWS Cognito during test setup
+original_cognito_current_user = None
+
+def _mock_cognito_init(self, region=None, userPoolId=None, client_id=None):
+    """Mock Cognito init that doesn't make HTTP requests"""
+    self.region = region
+    self.userPoolId = userPoolId
+    self.client_id = client_id
+
+# Patch the auth module's Cognito class before importing anything that uses it
+from workerfacing_api.core import auth
+if hasattr(auth, "WorkerGroupCognitoCurrentUser"):
+    auth.WorkerGroupCognitoCurrentUser.__init__ = _mock_cognito_init
 
 from tests.conftest import RDSTestingInstance, S3TestingBucket
 from workerfacing_api.core.auth import APIKeyDependency, GroupClaims

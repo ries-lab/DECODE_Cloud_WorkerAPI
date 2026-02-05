@@ -238,10 +238,12 @@ class TestJobs(_TestEndpoint):
             params={"type": "output", "base_path": "test"},
         )
         assert res.status_code == 201
-        if isinstance(queue, SQLiteRDSJobQueue):
-            req_base = client
-        else:
+        # When using S3 filesystem, we need to use requests library to make HTTP calls
+        # to the presigned S3 URL. TestClient can't make external HTTP requests.
+        if isinstance(base_filesystem, S3Filesystem):
             req_base = requests  # type: ignore
+        else:
+            req_base = client
         res = req_base.request(
             **res.json(),
             files={

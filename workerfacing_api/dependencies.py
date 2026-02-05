@@ -41,11 +41,32 @@ authorizer = auth.APIKeyDependency(key=settings.internal_api_key_secret)
 
 
 # Worker authentication
-current_user_dep = auth.WorkerGroupCognitoCurrentUser(
-    region=settings.cognito_region,
-    userPoolId=settings.cognito_user_pool_id,
-    client_id=settings.cognito_client_id,
-)
+# Lazy initialization to avoid HTTP calls during module import (important for testing)
+_current_user_dep: auth.WorkerGroupCognitoCurrentUser | None = None
+
+
+def _get_current_user_dep() -> auth.WorkerGroupCognitoCurrentUser:
+    global _current_user_dep
+    if _current_user_dep is None:
+        _current_user_dep = auth.WorkerGroupCognitoCurrentUser(
+            region=settings.cognito_region,
+            userPoolId=settings.cognito_user_pool_id,
+            client_id=settings.cognito_client_id,
+        )
+    return _current_user_dep
+
+
+# Create a property-like object that behaves like the original current_user_dep
+# but initializes lazily on first access
+class _CurrentUserDepProxy:
+    def __call__(self, *args, **kwargs):  # type: ignore
+        return _get_current_user_dep()(*args, **kwargs)
+
+    def __getattr__(self, name):  # type: ignore
+        return getattr(_get_current_user_dep(), name)
+
+
+current_user_dep = _CurrentUserDepProxy()
 
 
 async def current_user_global_dep(
