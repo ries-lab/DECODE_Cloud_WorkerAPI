@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
@@ -6,6 +7,8 @@ import dotenv
 from fastapi import Depends, FastAPI
 
 dotenv.load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 from workerfacing_api import dependencies, settings, tags
 from workerfacing_api.core.queue import RDSJobQueue
@@ -15,14 +18,14 @@ from workerfacing_api.endpoints import access, files, jobs, jobs_post
 async def cron_handle_timeouts(queue: RDSJobQueue) -> None:
     while True:
         await asyncio.sleep(settings.cron_timeout_check_interval)
-        print("Silent fails check: starting...")
+        logger.info("Silent fails check: starting...")
         try:
             max_retries = settings.max_retries
             timeout_failure = settings.timeout_failure
             n_retry, n_fail = queue.handle_timeouts(max_retries, timeout_failure)
-            print(f"Silent fails check: {n_retry} re-queued, {n_fail} failed.")
+            logger.info(f"Silent fails check: {n_retry} re-queued, {n_fail} failed.")
         except Exception as e:
-            print(f"Silent fails check: failed with {e}")
+            logger.error(f"Silent fails check: failed with {e}")
 
 
 async def cron_backup_database(queue: RDSJobQueue) -> None:
@@ -31,7 +34,7 @@ async def cron_backup_database(queue: RDSJobQueue) -> None:
         # Run backup in thread pool to avoid blocking event loop;
         # Fine instead of making backup async since it runs infrequently.
         if await asyncio.to_thread(queue.backup):
-            print("Backed up database.")
+            logger.info("Backed up database.")
 
 
 @asynccontextmanager
@@ -48,7 +51,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     task_backup.cancel()
     await asyncio.gather(task_failed_jobs, task_backup, return_exceptions=True)
     if queue.backup():
-        print("Created final backup on shutdown.")
+        logger.info("Created final backup on shutdown.")
 
 
 workerfacing_app = FastAPI(openapi_tags=tags.tags_metadata, lifespan=lifespan)
