@@ -603,8 +603,6 @@ class SQLiteRDSJobQueue(RDSJobQueue):
         with tempfile.TemporaryDirectory() as temp_dir:
             tmp_backup_path = os.path.join(temp_dir, "backup.db")
             tmp_gzip_path = os.path.join(temp_dir, "backup.db.gz")
-            
-            # Use Python's sqlite3 backup API instead of command-line tool
             with sqlite3.connect(self.db_path) as source_conn:
                 with sqlite3.connect(tmp_backup_path) as backup_conn:
                     source_conn.backup(backup_conn)
