@@ -56,7 +56,8 @@ serve = "scripts.serve:main"
 
 [tool.pytest.ini_options]
 markers = [
-    "aws: requires aws credentials"
+    "aws: requires aws credentials",
+    "deprecated: tests for deprecated features",
 ]
 addopts = "-m 'not aws'"
 

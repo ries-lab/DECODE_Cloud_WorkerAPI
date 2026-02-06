@@ -171,6 +171,7 @@ class TestLocalQueue(_TestJobQueue):
         base_queue.delete()
 
 
+@pytest.mark.deprecated
 class TestSQSQueue(_TestJobQueue):
     @pytest.fixture(
         params=[True, pytest.param(False, marks=pytest.mark.aws)], scope="class"
