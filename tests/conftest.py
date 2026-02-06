@@ -73,6 +73,19 @@ class RDSTestingInstance:
             else:
                 raise e
 
+    def remove_ingress_rules(self) -> None:
+        # cleans up earlier tests too (in case of failures)
+        security_groups = self.ec2_client.describe_security_groups(
+            GroupNames=[self.vpc_sg_rule_params["GroupName"]]
+        )
+        for sg in security_groups["SecurityGroups"]:
+            for rule in sg["IpPermissions"]:
+                if rule.get("FromPort") == 5432 and rule.get("ToPort") == 5432:
+                    self.ec2_client.revoke_security_group_ingress(
+                        GroupId=sg["GroupId"],
+                        IpPermissions=[rule],  # type: ignore
+                    )
+
     def cleanup(self) -> None:
         metadata = MetaData()
         engine = self.engine
@@ -136,7 +149,7 @@ class RDSTestingInstance:
         # never used (AWS tests skipped)
         if not hasattr(self, "rds_client"):
             return
-        self.ec2_client.revoke_security_group_ingress(**self.vpc_sg_rule_params)
+        self.remove_ingress_rules()
         self.rds_client.delete_db_instance(
             DBInstanceIdentifier=self.db_name,
             SkipFinalSnapshot=True,

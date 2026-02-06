@@ -350,6 +350,10 @@ class RDSJobQueue(JobQueue):
     def delete(self) -> None:
         Base.metadata.drop_all(self.engine)
 
+    def get_all(self) -> Any:
+        with Session(self.engine) as session:
+            return session.query(QueuedJob).all()
+
     def enqueue(self, job: SubmittedJob) -> None:
         with Session(self.engine) as session:
             session.add(

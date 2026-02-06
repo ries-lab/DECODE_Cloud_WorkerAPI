@@ -66,7 +66,9 @@ class TestCronHandleTimeouts:
 
             # Let timeout
             time.sleep(4)
-            assert queue.get_job(job_id).status == JobStates.queued.value
+            assert queue.get_job(job_id).status == JobStates.queued.value, [
+                el.__dict__ for el in queue.get_all()
+            ]
 
             # Pull again
             assert len(client.get("/jobs", params=get_params).json()) == 1
