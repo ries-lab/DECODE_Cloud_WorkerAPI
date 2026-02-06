@@ -25,8 +25,8 @@ def client() -> TestClient:
 class TestCronHandleTimeouts:
     @pytest.fixture(autouse=True)
     def setup_timeout_failure(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Set timeout_failure to 2 seconds for faster testing."""
-        monkeypatch.setattr(settings, "timeout_failure", 2)
+        """Set timeout_failure to 5 seconds for faster testing (but sufficient margin)."""
+        monkeypatch.setattr(settings, "timeout_failure", 5)
 
     @pytest.fixture(autouse=True)
     def setup_max_retries(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -60,8 +60,7 @@ class TestCronHandleTimeouts:
             assert job.num_retries == 0
 
             # Job kept alive by periodic status updates
-            for _ in range(4):
-                time.sleep(1)
+            for _ in range(5):
                 client.put(
                     f"/jobs/{job_id}/status",
                     params={"status": "running", "runtime_details": "Processing..."},
@@ -70,9 +69,10 @@ class TestCronHandleTimeouts:
                 job = queue.get_job(job_id)
                 assert job.status == JobStates.running.value
                 assert job.num_retries == 0
+                time.sleep(2)
 
-            # Let timeout
-            time.sleep(4)
+            # Let timeout (wait longer than timeout_failure)
+            time.sleep(10)
             job = queue.get_job(job_id)
             assert job.status == JobStates.queued.value
             assert job.num_retries == 1
@@ -83,8 +83,8 @@ class TestCronHandleTimeouts:
             assert job.status == JobStates.pulled.value
             assert job.num_retries == 1
 
-            # Let timeout and fail
-            time.sleep(4)
+            # Let timeout and fail (wait longer than timeout_failure)
+            time.sleep(10)
             job = queue.get_job(job_id)
             assert job.status == JobStates.error.value
             assert job.num_retries == 1
