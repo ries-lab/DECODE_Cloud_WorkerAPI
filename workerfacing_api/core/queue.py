@@ -525,7 +525,11 @@ class RDSJobQueue(JobQueue):
                     < time_now - datetime.timedelta(seconds=timeout_failure)
                 ),
             )
-            jobs_retry = jobs_timeout.filter(QueuedJob.num_retries < max_retries)
+            # Evaluate both queries before modifying any jobs to avoid race condition
+            jobs_retry = jobs_timeout.filter(QueuedJob.num_retries < max_retries).all()
+            jobs_failed = jobs_timeout.filter(
+                QueuedJob.num_retries >= max_retries
+            ).all()
             for job in jobs_retry:
                 # TODO: increase priority?
                 job.num_retries += 1
@@ -540,7 +544,6 @@ class RDSJobQueue(JobQueue):
                 except JobDeletedException:
                     # job probably deleted by user, skip updating status
                     pass
-            jobs_failed = jobs_timeout.filter(QueuedJob.num_retries >= max_retries)
             for job in jobs_failed:
                 try:
                     self.update_job_status(

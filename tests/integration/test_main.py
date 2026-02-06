@@ -74,16 +74,8 @@ class TestCronHandleTimeouts:
             # Let timeout
             time.sleep(4)
             job = queue.get_job(job_id)
-            if not job.status == JobStates.queued.value:
-                all_jobs = queue.get_all()
-                print(f"N_jobs={all_jobs}")
-                for job_ in all_jobs:
-                    print(
-                        f"Job {job_.job_id}: status={job_.status}, num_retries={job_.num_retries}"
-                    )
-                    print(job.__dict__)
             assert job.status == JobStates.queued.value
-            assert job.num_retries == 0
+            assert job.num_retries == 1
 
             # Pull again
             assert len(client.get("/jobs", params=get_params).json()) == 1
