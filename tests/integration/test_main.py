@@ -44,15 +44,20 @@ class TestCronHandleTimeouts:
         base_job: SubmittedJob,
         client: TestClient,
     ) -> None:
+        job_id = base_job.job.meta.job_id
         with client:
             # Push the job
             queue.enqueue(base_job)
+            job = queue.get_job(job_id)
+            assert job.status == JobStates.queued.value
+            assert job.num_retries == 0
 
             # Pull the job
             get_params = {"memory": 1}
-            job_id = base_job.job.meta.job_id
             assert len(client.get("/jobs", params=get_params).json()) == 1
-            assert queue.get_job(job_id).status == JobStates.pulled.value
+            job = queue.get_job(job_id)
+            assert job.status == JobStates.pulled.value
+            assert job.num_retries == 0
 
             # Job kept alive by periodic status updates
             for _ in range(4):
@@ -62,22 +67,35 @@ class TestCronHandleTimeouts:
                     params={"status": "running", "runtime_details": "Processing..."},
                 )
                 assert len(client.get("/jobs", params=get_params).json()) == 0
-                assert queue.get_job(job_id).status == JobStates.running.value
+                job = queue.get_job(job_id)
+                assert job.status == JobStates.running.value
+                assert job.num_retries == 0
 
             # Let timeout
             time.sleep(4)
-            assert queue.get_job(job_id).status == JobStates.queued.value, [
-                el.__dict__ for el in queue.get_all()
-            ]
+            job = queue.get_job(job_id)
+            if not job.status == JobStates.queued.value:
+                all_jobs = queue.get_all()
+                print(f"N_jobs={all_jobs}")
+                for job_ in all_jobs:
+                    print(
+                        f"Job {job_.job_id}: status={job_.status}, num_retries={job_.num_retries}"
+                    )
+                    print(job.__dict__)
+            assert job.status == JobStates.queued.value
+            assert job.num_retries == 0
 
             # Pull again
             assert len(client.get("/jobs", params=get_params).json()) == 1
-            assert queue.get_job(job_id).status == JobStates.pulled.value
-            assert queue.get_job(job_id).num_retries == 1
+            job = queue.get_job(job_id)
+            assert job.status == JobStates.pulled.value
+            assert job.num_retries == 1
 
             # Let timeout and fail
             time.sleep(4)
-            assert queue.get_job(job_id).status == JobStates.error.value
+            job = queue.get_job(job_id)
+            assert job.status == JobStates.error.value
+            assert job.num_retries == 1
 
 
 class TestCronBackupDatabase:
