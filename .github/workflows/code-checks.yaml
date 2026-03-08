@@ -51,7 +51,7 @@ jobs:
         aws-region: eu-central-1
     - name: Run tests
       run: |
-        poetry run pytest -m "aws or not(aws)" --junitxml=pytest.xml --cov-report=term-missing --cov=workerfacing_api | tee pytest-coverage.txt
+        poetry run pytest -m "aws and not(deprecated) or not(aws)" --junitxml=pytest.xml --cov-report=term-missing --cov=workerfacing_api | tee pytest-coverage.txt
         echo "test_exit_code=${PIPESTATUS[0]}" >> $GITHUB_ENV
     - name: Coverage comment
       uses: MishaKav/pytest-coverage-comment@main

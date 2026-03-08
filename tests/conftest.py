@@ -17,16 +17,10 @@ TEST_BUCKET_PREFIX = "decode-cloud-worker-api-tests-"
 REGION_NAME: BucketLocationConstraintType = "eu-central-1"
 
 
-@pytest.fixture(scope="session")
-def monkeypatch_module() -> Generator[pytest.MonkeyPatch, Any, None]:
-    with pytest.MonkeyPatch.context() as mp:
-        yield mp
-
-
-@pytest.fixture(autouse=True, scope="session")
-def patch_update_job(monkeypatch_module: pytest.MonkeyPatch) -> MagicMock:
+@pytest.fixture(autouse=True)
+def patch_update_job(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     mock_update_job = MagicMock()
-    monkeypatch_module.setattr(job_tracking, "update_job", mock_update_job)
+    monkeypatch.setattr(job_tracking, "update_job", mock_update_job)
     return mock_update_job
 
 
@@ -40,7 +34,7 @@ class RDSTestingInstance:
         self.add_ingress_rule()
         self.db_url = self.create_db_url()
         self.engine = self.get_engine()
-        self.delete_db_tables()
+        self.cleanup()
 
     def get_engine(self) -> Engine:
         for _ in range(5):
@@ -79,7 +73,20 @@ class RDSTestingInstance:
             else:
                 raise e
 
-    def delete_db_tables(self) -> None:
+    def remove_ingress_rules(self) -> None:
+        # cleans up earlier tests too (in case of failures)
+        security_groups = self.ec2_client.describe_security_groups(
+            GroupNames=[self.vpc_sg_rule_params["GroupName"]]
+        )
+        for sg in security_groups["SecurityGroups"]:
+            for rule in sg["IpPermissions"]:
+                if rule.get("FromPort") == 5432 and rule.get("ToPort") == 5432:
+                    self.ec2_client.revoke_security_group_ingress(
+                        GroupId=sg["GroupId"],
+                        IpPermissions=[rule],  # type: ignore
+                    )
+
+    def cleanup(self) -> None:
         metadata = MetaData()
         engine = self.engine
         metadata.reflect(engine)
@@ -138,14 +145,11 @@ class RDSTestingInstance:
         address = response["DBInstances"][0]["Endpoint"]["Address"]
         return f"postgresql://{user}:{password}@{address}:5432/{self.db_name}"
 
-    def cleanup(self) -> None:
-        self.delete_db_tables()
-        self.ec2_client.revoke_security_group_ingress(**self.vpc_sg_rule_params)
-
     def delete(self) -> None:
         # never used (AWS tests skipped)
         if not hasattr(self, "rds_client"):
             return
+        self.remove_ingress_rules()
         self.rds_client.delete_db_instance(
             DBInstanceIdentifier=self.db_name,
             SkipFinalSnapshot=True,

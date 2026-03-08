@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "workerfacing-api"
-version = "0.1.0"
+version = "0.2.0"
 description = "Worker-facing API of DECODE OpenCloud."
 authors = ["Arthur Jaques <arthur.jaques@hispeed.ch>"]
 readme = "README.md"
@@ -56,7 +56,8 @@ serve = "scripts.serve:main"
 
 [tool.pytest.ini_options]
 markers = [
-    "aws: requires aws credentials"
+    "aws: requires aws credentials",
+    "deprecated: tests for deprecated features",
 ]
 addopts = "-m 'not aws'"
 

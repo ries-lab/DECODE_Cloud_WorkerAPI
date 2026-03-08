@@ -1,12 +1,19 @@
 import abc
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Generator
 
 import pytest
 from fastapi.testclient import TestClient
 
 from workerfacing_api.dependencies import current_user_dep
 from workerfacing_api.main import workerfacing_app
+
+
+@pytest.fixture
+def client() -> Generator[TestClient, None, None]:
+    # run everything in lifespan context
+    with TestClient(workerfacing_app) as client:
+        yield client
 
 
 @dataclass
@@ -23,10 +30,6 @@ class _TestEndpoint(abc.ABC):
     @pytest.fixture(scope="session")
     def passing_params(self, *args: Any, **kwargs: Any) -> list[EndpointParams]:
         raise NotImplementedError
-
-    @pytest.fixture(scope="session")
-    def client(self) -> TestClient:
-        return TestClient(workerfacing_app)
 
     def test_required_auth(
         self,

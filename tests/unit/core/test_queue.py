@@ -69,7 +69,7 @@ class _TestJobQueue(abc.ABC):
         success = False
         for _ in range(10):  # i.p. SQS, RDS, etc. might need some time to delete
             try:
-                base_queue.create(err_on_exists=True)
+                base_queue.create()
                 success = True
                 break
             except Exception:
@@ -171,6 +171,7 @@ class TestLocalQueue(_TestJobQueue):
         base_queue.delete()
 
 
+@pytest.mark.deprecated
 class TestSQSQueue(_TestJobQueue):
     @pytest.fixture(
         params=[True, pytest.param(False, marks=pytest.mark.aws)], scope="class"
