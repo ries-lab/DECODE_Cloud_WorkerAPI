@@ -1097,14 +1097,14 @@ requests = ">=2.24.0,<3.0.0"
 
 [[package]]
 name = "fastapi-utils"
-version = "0.7.0"
+version = "0.8.0"
 description = "Reusable utilities for FastAPI"
 optional = false
-python-versions = "<4.0,>=3.7"
+python-versions = "<4.0,>=3.8"
 groups = ["main"]
 files = [
-    {file = "fastapi_utils-0.7.0-py3-none-any.whl", hash = "sha256:4fc4d6a10b5c5c3f2ec564d360fc1188507b911e4b06ee4d4c111906d7ddeef1"},
-    {file = "fastapi_utils-0.7.0.tar.gz", hash = "sha256:074509405b02e2651dfe2d11862dd760bacc1a64508f3d8cc44e52a6dc1ed342"},
+    {file = "fastapi_utils-0.8.0-py3-none-any.whl", hash = "sha256:6c4d507a76bab9a016cee0c4fa3a4638c636b2b2689e39c62254b1b2e4e81825"},
+    {file = "fastapi_utils-0.8.0.tar.gz", hash = "sha256:eca834e80c09f85df30004fe5e861981262b296f60c93d5a1a1416fe4c784140"},
 ]
 
 [package.dependencies]
@@ -2806,4 +2806,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = "3.11.10"
-content-hash = "4bbba14bb0674b84f8ced8c2fbef7150a105818833b2388caf12bc2fb1b26cad"
+content-hash = "a6e7a1274280e45f188c6ac39edd84078bef69e080c357e0a5fd25ed97cca429"
