@@ -34,7 +34,7 @@ def main() -> None:
         uvicorn.run(app, host=host, port=port, reload=True)
     else:
         StandaloneApplication(
-            app="app:app",
+            app=app,
             options={
                 "bind": f"{host}:{port}",
                 "workers": (multiprocessing.cpu_count() * 2) + 1,
